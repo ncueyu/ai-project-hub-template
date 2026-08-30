@@ -12,7 +12,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { pathToFileURL } from "node:url";
 
@@ -20,6 +20,7 @@ import { MANIFEST_FILENAME, parseManifest } from "../src/hub/manifest.js";
 import { planBuild, renderPlan } from "../tools/build-plan.mjs";
 import { hasRemoteDatabase } from "../tools/config.mjs";
 import { detectProject } from "../tools/detect.mjs";
+import { applyDomainLock } from "../tools/domain-lock.mjs";
 import { publishToGithub } from "../tools/github.mjs";
 import { listPitfalls, renderPitfalls, SCOPES } from "../tools/pitfalls.mjs";
 import { renderChecks, runPreDeployChecks } from "../tools/predeploy.mjs";
@@ -47,6 +48,7 @@ const USAGE = `hub —— AI Project Hub 指令列工具
   init                    初始化展示中心自己（建 D1、部署、寫入站名與版面設定，見下方說明）
   new <資料夾>             把一個資料夾初始化成可部署的專案（建 public/、產生兩個設定檔）
   link <資料夾>            登錄一個已經在別的地方上線的網站（不部署、不需要後台密碼）
+  lock <資料夾>            加一段檢查：頁面不是從自己的網址載入就不執行（--remove 移除）
   thumbnail <專案> <圖片>  把一張圖設成該專案的縮圖（存進 D1，不需要重新部署）
   pitfalls [情境]          列出已知的部署踩坑（每一項都是實際踩過才寫上來的）
   help                    顯示這份說明
@@ -61,6 +63,7 @@ const USAGE = `hub —— AI Project Hub 指令列工具
   --skip-build            check 時不執行建置
   --skip-tests            check 時不執行測試
   --skip-typecheck        check 時不執行型別檢查
+  --remove                lock 用：把已注入的網域鎖拿掉
   --yes                   github／ship／init 時跳過互動確認（阻擋級問題仍會停止，不會被跳過）
   --site-name=<文字>       init 用：站名（--yes 模式下必填，沒有合理預設值）
   --password-hash=<雜湊>   init 用：管理者密碼雜湊（--yes 模式下必填；不是密碼明文，
@@ -83,6 +86,7 @@ private；已存在的專案不覆蓋目前的權限設定。若目前權限是�
   node bin/hub.mjs github ../some-project
   node bin/hub.mjs ship ../some-project
   node bin/hub.mjs link 要部署的專案/我的班網
+  node bin/hub.mjs lock 要部署的專案/我的測驗
   node bin/hub.mjs thumbnail resistor-color-code ./截圖.png
   node bin/hub.mjs init
 `;
@@ -725,6 +729,77 @@ export async function main(argv) {
 
     process.stderr.write("未完成——見上方逐項結果，找「[停止]」那一項的說明。\n");
     return 1;
+  }
+
+  if (command === "lock") {
+    const dir = positional[0];
+
+    if (!dir) {
+      process.stderr.write(
+        "請指定專案資料夾，例如：node bin/hub.mjs lock 要部署的專案/我的測驗\n\n"
+          + "這個指令會在該專案的 HTML 裡加一段檢查：頁面不是從自己的網址載入時就不執行。\n"
+          + "加上 --remove 則是把它拿掉。\n",
+      );
+      return 1;
+    }
+
+    const projectDir = resolve(dir);
+    const manifestPath = join(projectDir, MANIFEST_FILENAME);
+
+    if (!existsSync(manifestPath)) {
+      process.stderr.write(
+        `${projectDir} 底下找不到 ${MANIFEST_FILENAME}。\n`
+          + "網域鎖要知道這個專案的代稱（線上網址的第一段），那個值寫在設定檔裡。\n"
+          + `還沒有設定檔的話，先執行：node bin/hub.mjs new ${dir}\n`,
+      );
+      return 1;
+    }
+
+    const manifest = parseManifest(readFileSync(manifestPath, "utf8"));
+
+    if (!manifest.ok) {
+      process.stderr.write(`${MANIFEST_FILENAME} 內容有問題，無法繼續。\n`);
+      return 1;
+    }
+
+    const removing = flags.remove === true;
+
+    try {
+      const result = applyDomainLock({ dir: projectDir, slug: manifest.value.slug, remove: removing });
+      const changed = result.files.filter((file) => file.changed);
+
+      if (result.files.length === 0) {
+        process.stderr.write(`${result.assetsDir} 底下找不到任何 HTML 檔案。\n`);
+        return 1;
+      }
+
+      process.stdout.write(
+        `${removing ? "已移除" : "已加入"}網域鎖：${changed.length}／${result.files.length} 個 HTML 檔案有變動\n`
+          + `  目錄：${result.assetsDir}\n`
+          + changed.map((file) => `  · ${file.path}\n`).join(""),
+      );
+
+      if (!removing) {
+        /*
+         * 這段話是強制的。這個功能最危險的失敗模式不是它壞掉，而是使用者
+         * 以為它是「保護」——那會讓他把真正該保密的東西（例如測驗答案）
+         * 安心地留在網頁裡。
+         */
+        process.stdout.write(
+          "\n這是**嚇阻**，不是保護：\n"
+            + "  · 擋得住「把整包複製回去、雙擊 index.html 打開」\n"
+            + "  · 擋不住看得懂這段程式碼、把它刪掉的人\n"
+            + "  · 原始碼一樣看得到——按 F12 或檢視原始碼都還是看得到\n\n"
+            + "真的不能外流的東西（例如測驗答案）不要放進網頁，要放在伺服器那一邊。\n"
+            + "本機測試（localhost）不受影響。改完要重新部署才會生效。\n",
+        );
+      }
+
+      return 0;
+    } catch (error) {
+      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
   }
 
   if (command === "thumbnail") {

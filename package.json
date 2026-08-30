@@ -10,8 +10,8 @@
     "build:info": "node scripts/write-build-info.mjs",
     "deploy": "node scripts/write-build-info.mjs --env=production && wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "test": "node --test",
-    "check": "tsc --noEmit && node --test",
+    "test": "node --test test/*.test.mjs stage-1/demos/*/test/*.test.mjs",
+    "check": "tsc --noEmit && node --test test/*.test.mjs stage-1/demos/*/test/*.test.mjs",
     "dry-run": "wrangler deploy --dry-run",
     "verify:stage2": "node scripts/verify-stage2.mjs",
     "hub": "node bin/hub.mjs",
@@ -21,7 +21,7 @@
     "seed:local": "wrangler d1 execute ai-project-hub-db --local --file scripts/seed-local-d1.sql",
     "integration:stage2": "node scripts/integration-stage2.mjs",
     "benchmark:pbkdf2": "wrangler dev -c scripts/benchmark/wrangler.jsonc --port 8794",
-    "verify": "tsc --noEmit && node --test && node scripts/verify-stage2.mjs && wrangler deploy --dry-run"
+    "verify": "tsc --noEmit && node --test test/*.test.mjs stage-1/demos/*/test/*.test.mjs && node scripts/verify-stage2.mjs && wrangler deploy --dry-run"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260808.1",
