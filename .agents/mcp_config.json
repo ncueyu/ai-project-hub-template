@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ai-project-hub": {
+      "command": "node",
+      "args": ["bin/hub-mcp.mjs"]
+    }
+  }
+}
