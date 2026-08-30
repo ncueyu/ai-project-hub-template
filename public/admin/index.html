@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- description 刻意不個人化：爬蟲不執行 JS，套用 /api/site 的站名對它
+         沒有作用（見 2026-08-27-工作計畫-站名與hub-init.md 第三節 Part A-2）。 -->
+    <meta name="description" content="管理後台：管理專案資料、分類、標籤與可見性。" />
+    <!-- 站名部分（｜之後）是中性預設值，由 site-footer.js 讀到 /api/site
+         後即時換成管理者設定的站名，見 data-site-title-prefix。 -->
+    <title>管理後台｜專案展示中心</title>
+    <!--
+      在 CSS 生效前先掛上上次記住的配色，消除閃爍。
+
+      為什麼需要這一段：主題存在資料庫裡，而這幾頁都是靜態 HTML——要等
+      site-footer.js 打完 /api/site 才知道該套哪一套。中間那段空窗期畫面會
+      先用預設配色畫一次再跳掉，越慢的網路越明顯。
+
+      刻意寫成內嵌的同步 script：外部檔案會多一次請求，而且不保證在第一次
+      繪製前執行完。這段只有幾行，內嵌的成本低於它換來的效果。
+
+      localStorage 在無痕視窗或封鎖網站資料時會直接拋錯，所以整段包在
+      try 裡——記不住頂多閃一下，不能讓它擋住整頁。
+    -->
+    <script>
+      try {
+        var t = localStorage.getItem("hub-site-theme");
+        if (t && t !== "zero" && ["one", "two", "three"].indexOf(t) !== -1) {
+          document.documentElement.setAttribute("data-theme", t);
+        }
+      } catch (e) {
+        /* 讀不到就用預設配色 */
+      }
+    </script>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/admin/admin.css" />
+  </head>
+  <body class="admin-page" data-site-title-prefix="管理後台">
+    <a class="skip-link" href="#main-content">跳至主要內容</a>
+
+    <header class="site-header shell">
+      <!-- aria-label 的站名部分是中性預設值，由 site-footer.js 换成實際站名
+           （data-site-aria-suffix 標出「站名之後要接的字」）。 -->
+      <a class="brand" href="/" aria-label="專案展示中心 首頁" data-site-aria-suffix="首頁">
+        <!-- 預設 logo-01，理由同 public/index.html 的同一處註解。 -->
+        <span class="brand-mark" aria-hidden="true"><img src="/logos/logo-01.png" alt="" /></span>
+        <span>
+          <span class="brand-name">管理後台</span>
+          <span class="brand-subtitle">專案展示中心</span>
+        </span>
+      </a>
+      <nav class="site-nav" aria-label="主要導覽">
+        <a class="nav-link" href="/">展示中心</a>
+        <a class="nav-link is-active" href="/admin/" aria-current="page">管理後台</a>
+        <!-- 路徑寫死是刻意的：這是靜態頁面，無法 import src/admin-gate.js 的
+             常數。任何方法都會觸發登出（src/index.js 不限制 ADMIN_LOGOUT_PATH
+             的方法），單純的 <a> 連結即可，不需要表單或 JS。 -->
+        <a class="nav-link" href="/admin/logout">登出</a>
+      </nav>
+    </header>
+
+    <main id="main-content" class="shell admin-main">
+      <div class="admin-title-row">
+        <div>
+          <h1>專案管理</h1>
+          <p class="admin-lede">在這裡新增、修改專案資料，以及設定誰可以看到它們。</p>
+        </div>
+        <button class="button button-primary" type="button" id="add-project">新增專案</button>
+      </div>
+
+      <!-- 全域訊息：成功與失敗都會出現在這裡 -->
+      <div class="admin-flash" id="flash" role="alert" aria-live="assertive" hidden></div>
+
+      <!--
+        後台分頁（2026-08-30 階段 E）。
+
+        原本四個區塊由上往下排，「專案清單」會隨專案增加而愈來愈長，把後面
+        三塊一路推到看不見的地方——要改個站名得先滾很久。
+
+        選分頁而不是摺疊，理由是使用者是「一個月開一次後台的老師」：分頁把
+        「這裡能做哪些事」一直放在眼前，摺疊收起來就等於功能消失。四個項目
+        用摺疊反而更雜亂，而分頁的 2～5 個剛好。
+
+        2026-08-30 使用者裁定「推薦連結」獨立成一項——原本它與「分類與標籤」
+        合成一頁（理由是兩者都算「整理內容」），但推薦連結指的是別人做的
+        外部網站，跟自己的分類標籤不是同一件事，混在一頁反而要多想一秒。
+      -->
+      <div class="admin-tabs" role="tablist" aria-label="後台分頁">
+        <button class="admin-tab is-active" type="button" role="tab"
+          id="tab-projects" aria-controls="panel-projects" aria-selected="true">專案</button>
+        <button class="admin-tab" type="button" role="tab" tabindex="-1"
+          id="tab-taxonomy" aria-controls="panel-taxonomy" aria-selected="false">分類與標籤</button>
+        <button class="admin-tab" type="button" role="tab" tabindex="-1"
+          id="tab-links" aria-controls="panel-links" aria-selected="false">推薦連結</button>
+        <button class="admin-tab" type="button" role="tab" tabindex="-1"
+          id="tab-settings" aria-controls="panel-settings" aria-selected="false">站台設定</button>
+      </div>
+
+
+      <div class="admin-panel" id="panel-projects" role="tabpanel" aria-labelledby="tab-projects">
+      <section aria-labelledby="project-list-title">
+        <div class="admin-section-head">
+          <h2 id="project-list-title">專案清單</h2>
+          <button class="button button-secondary" type="button" id="reload-projects">重新整理</button>
+        </div>
+
+        <div class="admin-state" id="list-loading"><p>正在載入專案…</p></div>
+
+        <div class="admin-state admin-state-error" id="list-error" hidden>
+          <h3>無法載入專案清單</h3>
+          <p id="list-error-message"></p>
+          <button class="button button-primary" type="button" id="list-retry">重新載入</button>
+        </div>
+
+        <div class="admin-state" id="list-empty" hidden>
+          <h3>還沒有任何專案</h3>
+          <p>按下「新增專案」建立第一筆資料。</p>
+        </div>
+
+        <ul class="project-admin-list" id="project-list" hidden></ul>
+      </section>
+      </div>
+
+      <div class="admin-panel" id="panel-taxonomy" role="tabpanel" aria-labelledby="tab-taxonomy" hidden>
+      <section class="taxonomy-section" aria-labelledby="taxonomy-title">
+        <h2 id="taxonomy-title">分類與標籤</h2>
+        <p class="admin-hint">分類每個專案只能選一個；標籤可以複選。</p>
+
+        <div class="taxonomy-columns">
+          <div class="taxonomy-block">
+            <h3 id="category-list-title">分類</h3>
+            <form class="taxonomy-form" id="category-form" novalidate>
+              <div class="field">
+                <label for="category-name">分類名稱（中文）</label>
+                <input type="text" id="category-name" name="name" required autocomplete="off" />
+              </div>
+              <details class="optional-field">
+                <summary>分類代稱（英文，可不填）</summary>
+                <div class="field">
+                  <label for="category-slug">分類代稱</label>
+                  <input type="text" id="category-slug" name="slug" autocomplete="off"
+                    aria-describedby="category-slug-hint category-slug-error" />
+                  <p class="field-hint" id="category-slug-hint">
+                    只用在網址上。不填會自動產生，通常不需要自己設定。
+                    要填的話只能用小寫英文、數字與連字號，例如 teaching-tools。
+                  </p>
+                  <p class="field-error" id="category-slug-error" hidden></p>
+                </div>
+              </details>
+              <button class="button button-secondary" type="submit">新增分類</button>
+            </form>
+            <ul class="taxonomy-list" id="category-list" aria-labelledby="category-list-title"></ul>
+          </div>
+
+          <div class="taxonomy-block">
+            <h3 id="tag-list-title">標籤</h3>
+            <form class="taxonomy-form" id="tag-form" novalidate>
+              <div class="field">
+                <label for="tag-name">標籤名稱（中文）</label>
+                <input type="text" id="tag-name" name="name" required autocomplete="off" />
+              </div>
+              <details class="optional-field">
+                <summary>標籤代稱（英文，可不填）</summary>
+                <div class="field">
+                  <label for="tag-slug">標籤代稱</label>
+                  <input type="text" id="tag-slug" name="slug" autocomplete="off"
+                    aria-describedby="tag-slug-hint tag-slug-error" />
+                  <p class="field-hint" id="tag-slug-hint">
+                    只用在網址上。不填會自動產生，通常不需要自己設定。
+                    要填的話只能用小寫英文、數字與連字號，例如 electronics。
+                  </p>
+                  <p class="field-error" id="tag-slug-error" hidden></p>
+                </div>
+              </details>
+              <button class="button button-secondary" type="submit">新增標籤</button>
+            </form>
+            <ul class="taxonomy-list" id="tag-list" aria-labelledby="tag-list-title"></ul>
+          </div>
+        </div>
+      </section>
+      </div>
+
+      <div class="admin-panel" id="panel-links" role="tabpanel" aria-labelledby="tab-links" hidden>
+      <section class="taxonomy-section" aria-labelledby="link-list-title">
+        <div class="admin-section-head">
+          <h2 id="link-list-title">推薦連結</h2>
+          <button class="button button-primary" type="button" id="add-link">新增連結</button>
+        </div>
+        <p class="admin-hint">貼上別人做的、你覺得不錯的工具網址，會顯示在展示中心的獨立區塊。</p>
+
+        <div class="admin-state" id="link-list-loading"><p>正在載入推薦連結…</p></div>
+
+        <div class="admin-state admin-state-error" id="link-list-error" hidden>
+          <h3>無法載入推薦連結</h3>
+          <p id="link-list-error-message"></p>
+          <button class="button button-primary" type="button" id="link-list-retry">重新載入</button>
+        </div>
+
+        <div class="admin-state" id="link-list-empty" hidden>
+          <h3>還沒有任何推薦連結</h3>
+          <p>按下「新增連結」建立第一筆資料。</p>
+        </div>
+
+        <ul class="project-admin-list" id="link-list" hidden></ul>
+      </section>
+      </div>
+
+      <div class="admin-panel" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+      <section class="taxonomy-section" aria-labelledby="settings-title">
+        <div class="admin-section-head">
+          <h2 id="settings-title">站台設定</h2>
+        </div>
+        <!-- 2026-08-28 新增：把「hub init 問過的四件事」集中在這裡，讓使用者
+             知道那些設定叫什麼、放在哪、以後怎麼改（見
+             2026-08-27-工作計畫-站名與hub-init.md Part C，2026-08-28 使用者
+             修正版）。原本獨立的「展示中心版面」區塊移進來，不再留兩份。
+             刻意不顯示「後台開關 ADMIN_ENABLED」：能看到這個畫面就代表後台
+             已經開啟，顯示「開啟」是廢話（2026-08-28 使用者裁定）。 -->
+        <p class="admin-hint">
+          這些是 hub init 當初問過的設定。想改的話可以直接在這裡改，也可以
+          把下面標出的名稱告訴 AI，請它幫忙改。
+        </p>
+
+        <div class="settings-items">
+          <div class="taxonomy-block">
+            <h3>站名</h3>
+            <p class="field-hint">
+              首頁、後台、教材頁最上方顯示的名稱，例如「王老師的作品集」。
+              在這裡改完立即生效，不需要重新部署。
+            </p>
+            <p class="field-hint field-hint-strong">跟 AI 溝通時，用這個名稱：「站名」。</p>
+
+            <form id="site-name-form" novalidate>
+              <div class="field">
+                <label for="site-name-input">站名</label>
+                <input type="text" id="site-name-input" name="site_name" maxlength="60"
+                  autocomplete="off" aria-describedby="site-name-error" />
+                <p class="field-error" id="site-name-error" hidden></p>
+              </div>
+              <button class="button button-secondary" type="submit" id="site-name-submit">儲存站名</button>
+            </form>
+          </div>
+
+          <div class="taxonomy-block">
+            <h3>展示中心版面</h3>
+            <p class="field-hint">
+              選一種版面，所有訪客看到的展示中心都會套用同一種。這裡只影響專案卡片，
+              不影響推薦連結。改完立即生效，不需要重新部署。
+            </p>
+            <p class="field-hint field-hint-strong">跟 AI 溝通時，用這個名稱：「版面風格」。</p>
+
+            <form id="layout-form" novalidate>
+              <fieldset class="field visibility-field">
+                <legend>版面風格</legend>
+
+                <label class="visibility-option">
+                  <input type="radio" name="gallery_layout" value="hero" />
+                  <span>
+                    <strong>大圖主打</strong>
+                    <span class="visibility-note">第一項放大顯示，其餘較小。適合有想優先呈現的作品時使用。</span>
+                  </span>
+                </label>
+
+                <label class="visibility-option">
+                  <input type="radio" name="gallery_layout" value="grid" />
+                  <span>
+                    <strong>整齊小卡</strong>
+                    <span class="visibility-note">全部項目等大排列。預設版面。</span>
+                  </span>
+                </label>
+
+                <label class="visibility-option">
+                  <input type="radio" name="gallery_layout" value="list" />
+                  <span>
+                    <strong>純文字清單</strong>
+                    <span class="visibility-note">不顯示縮圖，適合還沒有製作縮圖或專案數量較多的時候。</span>
+                  </span>
+                </label>
+
+                <label class="visibility-option">
+                  <input type="radio" name="gallery_layout" value="rows" />
+                  <span>
+                    <strong>分類橫排</strong>
+                    <span class="visibility-note">一個分類一排、可左右捲動，適合分類數量多、想讓訪客先看到分類再找作品的時候。</span>
+                  </span>
+                </label>
+              </fieldset>
+
+              <p class="field-error" id="layout-error" hidden></p>
+              <button class="button button-secondary" type="submit" id="layout-submit">儲存版面設定</button>
+            </form>
+          </div>
+
+          <!-- 配色風格（2026-08-29 新增）。與版面設定分開是刻意的：版面決定
+               「東西怎麼排」，配色決定「長什麼顏色」，兩件事各自選，比合併成
+               十二種混合選項好懂。 -->
+          <div class="taxonomy-block">
+            <h3>網站配色</h3>
+            <p class="field-hint">
+              選一種配色，展示中心與這個後台會一起換。改完立即生效，不需要重新部署。
+            </p>
+            <p class="field-hint field-hint-strong">跟 AI 溝通時，用這個名稱：「網站配色」。</p>
+
+            <form id="theme-form" novalidate>
+              <fieldset class="field visibility-field">
+                <legend>配色風格</legend>
+
+                <label class="visibility-option">
+                  <input type="radio" name="site_theme" value="zero" />
+                  <span>
+                    <strong>原始配色</strong>
+                    <span class="visibility-note">柔和的藍綠與暖灰。預設配色，不確定要選哪個就用這個。</span>
+                  </span>
+                </label>
+
+                <label class="visibility-option">
+                  <input type="radio" name="site_theme" value="one" />
+                  <span>
+                    <strong>科技藍</strong>
+                    <span class="visibility-note">明亮的藍配石墨灰，對比清楚。適合技術類或作品展示。</span>
+                  </span>
+                </label>
+
+                <label class="visibility-option">
+                  <input type="radio" name="site_theme" value="two" />
+                  <span>
+                    <strong>墨綠</strong>
+                    <span class="visibility-note">墨綠配米灰，沉穩安靜。適合教學與文件類的內容。</span>
+                  </span>
+                </label>
+
+                <label class="visibility-option">
+                  <input type="radio" name="site_theme" value="three" />
+                  <span>
+                    <strong>青藍</strong>
+                    <span class="visibility-note">深藍灰配青藍，是三套裡最強烈的一套。</span>
+                  </span>
+                </label>
+              </fieldset>
+
+              <p class="field-error" id="theme-error" hidden></p>
+              <button class="button button-secondary" type="submit" id="theme-submit">儲存配色設定</button>
+            </form>
+          </div>
+
+          <div class="taxonomy-block">
+            <h3>網站圖示</h3>
+            <p class="field-hint">
+              首頁、後台、教材頁最上方，站名左邊顯示的圖示。選一張、按儲存，
+              改完立即生效，不需要重新部署。
+            </p>
+            <p class="field-hint field-hint-strong">跟 AI 溝通時，用這個名稱：「網站圖示」。</p>
+
+            <form id="site-logo-form" novalidate>
+              <fieldset class="field logo-picker">
+                <legend>網站圖示</legend>
+
+                <label class="logo-option">
+                  <input type="radio" name="site_logo" value="logo-01" />
+                  <img src="/logos/logo-01.png" alt="圖示選項一" width="64" height="64" />
+                </label>
+
+                <label class="logo-option">
+                  <input type="radio" name="site_logo" value="logo-02" />
+                  <img src="/logos/logo-02.png" alt="圖示選項二" width="64" height="64" />
+                </label>
+
+                <label class="logo-option">
+                  <input type="radio" name="site_logo" value="logo-03" />
+                  <img src="/logos/logo-03.png" alt="圖示選項三" width="64" height="64" />
+                </label>
+
+                <label class="logo-option">
+                  <input type="radio" name="site_logo" value="logo-04" />
+                  <img src="/logos/logo-04.png" alt="圖示選項四" width="64" height="64" />
+                </label>
+              </fieldset>
+
+              <p class="field-error" id="site-logo-error" hidden></p>
+              <button class="button button-secondary" type="submit" id="site-logo-submit">儲存網站圖示</button>
+            </form>
+          </div>
+
+          <div class="taxonomy-block">
+            <h3>管理後台密碼</h3>
+            <p class="field-hint">
+              用來登入這個管理後台。基於安全，這裡不顯示目前的密碼或雜湊——連遮蔽的
+              星號也不顯示，因為連長度都不該洩漏。這裡也無法直接修改，只能照下面的
+              步驟用指令更換。
+            </p>
+            <p class="field-hint field-hint-strong">跟 AI 溝通時，用這個名稱：「管理後台密碼」。</p>
+
+            <ol class="settings-steps">
+              <li>
+                在專案的終端機執行 <code>node tools/hash-admin-password.mjs</code>，
+                依提示輸入兩次新密碼（畫面只顯示星號，不是明碼）。
+              </li>
+              <li>
+                把指令印出的雜湊值，用
+                <code>node node_modules/wrangler/bin/wrangler.js secret put ADMIN_PASSWORD_HASH</code>
+                設定上去——貼上的是雜湊，不是密碼明文。
+              </li>
+              <li>
+                設定完立即生效，不需要重新執行部署（Cloudflare 的 Secret 寫入本身
+                就會建立新版本並立刻套用）；保險起見，建議設定後登出、用新密碼
+                重新登入一次確認。
+              </li>
+            </ol>
+            <p class="field-hint">
+              沒有「忘記密碼」信件可以寄：忘記了只能重新跑一次上面的步驟，
+              設定一組新密碼。
+            </p>
+          </div>
+        </div>
+      </section>
+      </div>
+    </main>
+
+    <footer data-site-footer></footer>
+
+    <!-- 專案表單：新增與編輯共用 -->
+    <dialog class="modal" id="project-dialog" aria-labelledby="project-dialog-title">
+      <form id="project-form" novalidate>
+        <div class="modal-head">
+          <h2 id="project-dialog-title">新增專案</h2>
+          <button class="icon-button" type="button" id="project-cancel" aria-label="關閉表單">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <p class="form-error-summary" id="form-error-summary" role="alert" hidden></p>
+
+          <div class="field">
+            <label for="project-name">專案名稱<span class="required-mark" aria-hidden="true">＊</span></label>
+            <!-- 2026-08-28 使用者要求：卡片上每個欄位都標明「大約放得下幾個字」。
+                 28 字是實測值——最窄的卡片寬度（桌面 4 欄、約 239px 內容寬）在
+                 16px 字級下每行 14 字，名稱最多 2 行。超過的部分在卡片上會被裁掉。 -->
+            <p class="field-hint" id="project-name-hint">
+              卡片上大約顯示得下 28 個中文字（2 行），超過的部分在卡片上會被裁掉；
+              完整名稱仍會存起來，切到「純文字清單」版面就看得到全部。
+            </p>
+            <input type="text" id="project-name" name="name" required maxlength="100"
+              autocomplete="off" aria-describedby="project-name-hint project-name-counter project-name-error" />
+            <p class="field-hint" id="project-name-counter">0 / 28 字</p>
+            <p class="field-error" id="project-name-error" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="project-slug">網址代稱<span class="required-mark" aria-hidden="true">＊</span></label>
+            <input type="text" id="project-slug" name="slug" required maxlength="80"
+              autocomplete="off" aria-describedby="project-slug-hint project-slug-error" />
+            <p class="field-hint" id="project-slug-hint">只能用小寫英文、數字與連字號，例如 resistor-color-code。</p>
+            <p class="field-error" id="project-slug-error" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="project-description">簡短說明</label>
+            <!-- 2026-08-28 主畫面改造 Part B5：展示中心卡片的說明區高度固定，
+                 超過的文字會被裁掉不顯示（見 public/gallery.css 的
+                 .project-description-clip）。「約 26 字」是實際截斷結果
+                 「最窄的卡片寬度（桌面 4 欄，約 285px）實際能顯示的中文字數」
+                 量出來的：18px 字級下每行 25.2px，63px 的裁切高度只放得下 2 整行，不是隨手估的。
+                 只是提醒，不阻擋儲存——完整內容仍會存下來，只是畫面上看不到
+                 超過的部分。 -->
+            <p class="field-hint" id="project-description-hint">
+              展示中心卡片顯示不下太長的說明：最窄的版面大約只能顯示 26 個中文字，
+              超過的部分不會顯示（但仍會完整存起來）。
+            </p>
+            <textarea id="project-description" name="description" rows="3" maxlength="1000"
+              aria-describedby="project-description-hint project-description-counter project-description-error"></textarea>
+            <p class="field-hint" id="project-description-counter">0 / 26 字</p>
+            <p class="field-error" id="project-description-error" hidden></p>
+          </div>
+
+          <fieldset class="field visibility-field">
+            <legend>誰可以看到這個專案<span class="required-mark" aria-hidden="true">＊</span></legend>
+            <p class="field-error" id="project-visibility-error" hidden></p>
+
+            <div class="visibility-status" role="note">
+              <p><strong>目前這個設定只控制「展示中心要不要列出這個專案」。</strong></p>
+              <p>
+                專案本身是獨立的網站。要讓「需要密碼」「私人」「停用」真正擋住訪客，
+                必須在部署專案時把權限檢查一起裝上去——這個自動化功能還在製作中。
+                在那之前，知道網址的人仍然可以直接開啟專案。
+              </p>
+            </div>
+
+            <label class="visibility-option">
+              <input type="radio" name="visibility" value="public" />
+              <span>
+                <strong>公開</strong>
+                <span class="visibility-note">
+                  會出現在展示中心，任何人都能看到並直接開啟。
+                </span>
+              </span>
+            </label>
+
+            <label class="visibility-option">
+              <input type="radio" name="visibility" value="unlisted" />
+              <span>
+                <strong>不公開連結</strong>
+                <span class="visibility-note">
+                  不會出現在展示中心，但知道網址的人可以直接開啟，不需要密碼。
+                  適合只想分享給特定幾個人的東西。<em>這一項現在就完全有效。</em>
+                </span>
+              </span>
+            </label>
+
+            <label class="visibility-option">
+              <input type="radio" name="visibility" value="password" />
+              <span>
+                <strong>需要密碼</strong>
+                <span class="visibility-note">
+                  <strong>會</strong>出現在展示中心，並標記「需要密碼」。
+                  名稱、說明、縮圖與分類所有人都看得到，內容要輸入密碼才能看。
+                  <em>改成這個狀態之後，<strong>要重新部署那個專案才會生效</strong>——
+                  密碼是在部署當下注入的。跟 AI 說「重新部署 XXX」即可。
+                  在重新部署之前，知道網址的人仍然打得開。
+                  連名稱都不想被看到請改選「私人」。</em>
+                </span>
+              </span>
+            </label>
+
+            <label class="visibility-option">
+              <input type="radio" name="visibility" value="private" />
+              <span>
+                <strong>私人</strong>
+                <span class="visibility-note">
+                  不會出現在展示中心。設計上只有你能開啟。
+                  <em>目前只做到「不列出」，知道網址的人仍然打得開。</em>
+                </span>
+              </span>
+            </label>
+
+            <label class="visibility-option">
+              <input type="radio" name="visibility" value="disabled" />
+              <span>
+                <strong>停用</strong>
+                <span class="visibility-note">
+                  不會出現在展示中心。設計上所有人都無法開啟，資料仍保留。
+                  <em>目前只做到「不列出」，尚未真正關閉專案。</em>
+                </span>
+              </span>
+            </label>
+          </fieldset>
+
+          <div class="password-section" id="password-section" hidden>
+            <h3 class="password-title">密碼設定</h3>
+            <p class="password-status" id="password-status" role="status" aria-live="polite"></p>
+            <div class="field">
+              <label for="project-password">新密碼</label>
+              <input type="password" id="project-password" autocomplete="new-password"
+                aria-describedby="project-password-hint project-password-error" />
+              <p class="field-hint" id="project-password-hint">至少 8 個字元。留空不會變更現有密碼。</p>
+              <p class="field-hint">
+                <strong>改完密碼要重新部署那個專案才會生效。</strong>
+                密碼是在部署當下注入到專案裡的，不像站名或版面那樣存好就立刻生效。
+                跟 AI 說「重新部署 XXX」就可以。
+              </p>
+              <p class="field-error" id="project-password-error" hidden></p>
+            </div>
+            <div class="password-actions">
+              <button class="button button-secondary" type="button" id="password-save">儲存密碼</button>
+              <button class="button button-quiet" type="button" id="password-clear">移除密碼</button>
+            </div>
+            <p class="field-hint">變更或移除密碼後，先前已經輸入過密碼的人都必須重新輸入。</p>
+          </div>
+
+          <p class="field-hint" id="password-note" hidden>
+            要設定密碼，請先儲存這個專案，再重新開啟編輯。
+          </p>
+
+          <div class="field">
+            <label for="project-category">分類</label>
+            <select id="project-category" name="category_id" aria-describedby="project-category-error">
+              <option value="">不指定</option>
+            </select>
+            <p class="field-error" id="project-category-error" hidden></p>
+          </div>
+
+          <fieldset class="field" id="tag-fieldset">
+            <legend>標籤</legend>
+            <div class="tag-checkboxes" id="project-tags"></div>
+            <p class="field-hint" id="project-tags-empty" hidden>目前還沒有標籤，可以在下方「分類與標籤」區塊新增。</p>
+          </fieldset>
+
+          <div class="field">
+            <label for="project-deployment-url">網站網址</label>
+            <input type="url" id="project-deployment-url" name="deployment_url"
+              autocomplete="off" aria-describedby="project-deployment-url-hint project-deployment-url-error" />
+            <p class="field-hint" id="project-deployment-url-hint">訪客點「開啟」會前往這個網址，必須是 https 開頭。</p>
+            <p class="field-error" id="project-deployment-url-error" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="project-thumbnail-url">展示圖片網址</label>
+            <input type="text" id="project-thumbnail-url" name="thumbnail_url"
+              autocomplete="off" aria-describedby="project-thumbnail-url-hint project-thumbnail-url-error" />
+            <p class="field-hint" id="project-thumbnail-url-hint">可以直接填寫圖片網址，或用下方的上傳功能。</p>
+            <p class="field-error" id="project-thumbnail-url-error" hidden></p>
+          </div>
+
+          <div class="thumbnail-upload" id="thumbnail-upload" hidden>
+            <p class="field-hint" id="thumbnail-upload-r2-note">
+              本站目前未啟用圖片儲存空間，這個按鈕按下去會失敗。正式做法：把網站首頁的
+              截圖放進「要部署的專案」底下該專案自己的資料夾（跟 <code>wrangler.jsonc</code>
+              同一層，不要放進 <code>public</code> 裡），檔名不限，接著告訴我要「部署」——
+              光是把檔案放進資料夾還不會生效，一定要請我實際部署一次，截圖才會真正上線。
+              也可以不用截圖，直接在上面「展示圖片網址」欄位填一個現成的圖片網址。
+            </p>
+            <div class="field">
+              <label for="thumbnail-file">上傳圖片檔案</label>
+              <input type="file" id="thumbnail-file"
+                accept="image/png,image/jpeg,image/webp,image/avif"
+                aria-describedby="thumbnail-file-hint thumbnail-file-error" />
+              <p class="field-hint" id="thumbnail-file-hint">
+                支援 PNG、JPEG、WebP、AVIF，檔案不能超過 5 MiB。上傳後會立刻套用到這個專案。
+              </p>
+              <p class="field-error" id="thumbnail-file-error" hidden></p>
+            </div>
+            <button class="button button-secondary" type="button" id="thumbnail-upload-button">上傳圖片</button>
+            <p class="upload-status" id="thumbnail-status" role="status" aria-live="polite"></p>
+          </div>
+
+          <p class="field-hint" id="thumbnail-upload-note">
+            要上傳圖片檔案，請先儲存這個專案，再重新開啟編輯。
+          </p>
+
+          <details class="advanced-fields">
+            <summary>技術細節（不確定就不用改）</summary>
+
+            <p class="field-hint advanced-note">
+              下面這幾項現在只是分類標籤，填錯不會影響任何功能。
+              日後由 AI 協助部署時，AI 會自己判斷專案的實際型態，不需要你選。
+            </p>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="project-platform">執行平台</label>
+                <select id="project-platform" name="platform" aria-describedby="project-platform-error">
+                  <option value="cloudflare">Cloudflare</option>
+                  <option value="vercel">Vercel</option>
+                  <option value="supabase">Supabase</option>
+                  <option value="external">其他外部平台</option>
+                </select>
+                <p class="field-error" id="project-platform-error" hidden></p>
+              </div>
+
+              <div class="field">
+                <label for="project-type">專案型態</label>
+                <select id="project-type" name="project_type">
+                  <option value="static">靜態網頁</option>
+                  <option value="worker">Worker（伺服器端程式）</option>
+                  <option value="fullstack">前後端整合</option>
+                  <option value="other">其他</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="project-database">資料庫</label>
+              <select id="project-database" name="database_type">
+                <option value="none">不使用</option>
+                <option value="d1">Cloudflare D1</option>
+                <option value="supabase">Supabase</option>
+                <option value="other">其他</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="project-repository-url">原始碼位置</label>
+              <input type="url" id="project-repository-url" name="repository_url"
+                autocomplete="off" aria-describedby="project-repository-url-error" />
+              <p class="field-error" id="project-repository-url-error" hidden></p>
+            </div>
+
+            <div class="field">
+              <label for="project-worker-name">Worker 名稱</label>
+              <input type="text" id="project-worker-name" name="worker_name"
+                autocomplete="off" aria-describedby="project-worker-name-error" />
+              <p class="field-error" id="project-worker-name-error" hidden></p>
+            </div>
+          </details>
+        </div>
+
+        <div class="modal-foot">
+          <button class="button button-secondary" type="button" id="project-cancel-bottom">取消</button>
+          <button class="button button-primary" type="submit" id="project-submit">儲存</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- 刪除確認 -->
+    <dialog class="modal modal-narrow" id="delete-dialog" aria-labelledby="delete-dialog-title">
+      <div class="modal-head">
+        <h2 id="delete-dialog-title">確認刪除專案</h2>
+      </div>
+      <div class="modal-body">
+        <p>即將刪除：<strong id="delete-target-name"></strong></p>
+        <div class="delete-scope" id="delete-scope">
+          <p><strong>只會刪除這裡的專案資料。</strong></p>
+          <p>不會刪除已部署的網站、GitHub 上的原始碼，也不會刪除任何已上傳的圖片檔案。那些需要你自己到各平台處理。</p>
+        </div>
+        <div class="delete-scope" id="delete-usage" hidden>
+          <p id="delete-usage-text"></p>
+        </div>
+        <p class="form-error-summary" id="delete-error" role="alert" hidden></p>
+      </div>
+      <div class="modal-foot">
+        <button class="button button-secondary" type="button" id="delete-cancel">取消</button>
+        <button class="button button-danger" type="button" id="delete-confirm">確定刪除</button>
+      </div>
+    </dialog>
+
+    <!-- 部署紀錄 -->
+    <dialog class="modal" id="deployments-dialog" aria-labelledby="deployments-dialog-title">
+      <div class="modal-head">
+        <h2 id="deployments-dialog-title">部署紀錄</h2>
+        <button class="icon-button" type="button" id="deployments-close" aria-label="關閉部署紀錄">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="admin-hint">
+          這裡只記錄「已經完成」的部署結果，不會執行部署。實際的發佈仍由你自己或既有工具進行。
+        </p>
+
+        <h3 class="deployment-subtitle">歷史紀錄</h3>
+        <p id="deployment-empty" hidden>還沒有任何部署紀錄。</p>
+        <ul class="deployment-list" id="deployment-list"></ul>
+
+        <h3 class="deployment-subtitle">新增一筆紀錄</h3>
+        <form id="deployment-form" novalidate>
+          <p class="form-error-summary" id="deployment-error" role="alert" hidden></p>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="deployment-platform">平台</label>
+              <select id="deployment-platform" name="platform">
+                <option value="cloudflare">Cloudflare</option>
+                <option value="vercel">Vercel</option>
+                <option value="supabase">Supabase</option>
+                <option value="external">其他外部平台</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="deployment-status">結果</label>
+              <select id="deployment-status" name="status">
+                <option value="success">成功</option>
+                <option value="failed">失敗</option>
+                <option value="rolled_back">已還原</option>
+                <option value="unknown">不確定</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="deployment-url">部署後的網址</label>
+            <input type="url" id="deployment-url" name="deployment_url"
+              aria-describedby="deployment-url-hint" />
+            <p class="field-hint" id="deployment-url-hint">必須是 https 開頭。記錄為「成功」時會同時更新專案的公開網址。</p>
+          </div>
+
+          <div class="field">
+            <label for="deployment-version">版本識別（選填）</label>
+            <input type="text" id="deployment-version" name="version_ref"
+              aria-describedby="deployment-version-hint" />
+            <p class="field-hint" id="deployment-version-hint">例如 Git 的提交編號，方便日後對照。</p>
+          </div>
+
+          <button class="button button-primary" type="submit" id="deployment-submit">新增紀錄</button>
+        </form>
+      </div>
+    </dialog>
+
+    <template id="project-row-template">
+      <li class="project-admin-item">
+        <div class="project-admin-main">
+          <p class="project-admin-visibility"></p>
+          <!-- 主卡片標記：只有目前 sort_order = 1 的專案才顯示（2026-08-28
+               主畫面改造 Part D）。用 hidden 屬性切換，但這個徽章仿照
+               .project-admin-visibility 有自己的 display: inline-flex，
+               同樣的坑已經踩過四次——CSS 那邊要記得加 [hidden] 覆寫。 -->
+          <p class="project-admin-primary-badge" hidden>★ 目前是主卡片</p>
+          <h3 class="project-admin-name"></h3>
+          <p class="project-admin-slug"></p>
+          <p class="project-admin-meta"></p>
+        </div>
+        <div class="project-admin-actions">
+          <button class="button button-quiet project-copy-link" type="button" hidden>複製連結</button>
+          <button class="button button-quiet project-set-primary" type="button">設為主卡片</button>
+          <button class="button button-quiet project-deployments" type="button">部署紀錄</button>
+          <button class="button button-secondary project-edit" type="button">編輯</button>
+          <button class="button button-quiet project-delete" type="button">刪除</button>
+        </div>
+      </li>
+    </template>
+
+    <!-- 推薦連結表單：新增與編輯共用 -->
+    <dialog class="modal" id="link-dialog" aria-labelledby="link-dialog-title">
+      <form id="link-form" novalidate>
+        <div class="modal-head">
+          <h2 id="link-dialog-title">新增連結</h2>
+          <button class="icon-button" type="button" id="link-cancel" aria-label="關閉表單">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <p class="form-error-summary" id="link-form-error-summary" role="alert" hidden></p>
+
+          <div class="field">
+            <label for="link-name">名稱<span class="required-mark" aria-hidden="true">＊</span></label>
+            <input type="text" id="link-name" name="name" required maxlength="100"
+              autocomplete="off" aria-describedby="link-name-error" />
+            <p class="field-error" id="link-name-error" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="link-url">網址<span class="required-mark" aria-hidden="true">＊</span></label>
+            <input type="text" id="link-url" name="url" required
+              autocomplete="off" aria-describedby="link-url-hint link-url-error" />
+            <p class="field-hint" id="link-url-hint">
+              可以是 http:// 或 https:// 開頭。如果是校內系統的內部網址（例如
+              http://192.168.x.x 這種），校外訪客會連不上，請在下面的備註寫「校內限定」。
+            </p>
+            <p class="field-error" id="link-url-error" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="link-description">備註</label>
+            <textarea id="link-description" name="description" rows="3" maxlength="1000"
+              aria-describedby="link-description-error"></textarea>
+            <p class="field-error" id="link-description-error" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="link-icon">emoji 圖示</label>
+            <input type="text" id="link-icon" name="icon" maxlength="32"
+              autocomplete="off" aria-describedby="link-icon-hint link-icon-error" />
+            <p class="field-hint" id="link-icon-hint">例如 🔗。留空的話展示中心會用預設圖示。</p>
+            <p class="field-error" id="link-icon-error" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="link-category">分類</label>
+            <select id="link-category" name="category_id" aria-describedby="link-category-error">
+              <option value="">不指定</option>
+            </select>
+            <p class="field-error" id="link-category-error" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="link-sort-order">排序</label>
+            <input type="text" id="link-sort-order" name="sort_order" inputmode="numeric" pattern="-?[0-9]*"
+              autocomplete="off" aria-describedby="link-sort-order-hint link-sort-order-error" />
+            <p class="field-hint" id="link-sort-order-hint">數字小的排前面，相同數字時依名稱排序。留空視為 0。</p>
+            <p class="field-error" id="link-sort-order-error" hidden></p>
+          </div>
+
+          <div class="field">
+            <label class="tag-checkbox">
+              <input type="checkbox" id="link-is-listed" name="is_listed" checked />
+              <span>在展示中心顯示</span>
+            </label>
+            <p class="field-error" id="link-is_listed-error" hidden></p>
+          </div>
+        </div>
+
+        <div class="modal-foot">
+          <button class="button button-secondary" type="button" id="link-cancel-bottom">取消</button>
+          <button class="button button-primary" type="submit" id="link-submit">儲存</button>
+        </div>
+      </form>
+    </dialog>
+
+    <template id="link-row-template">
+      <li class="project-admin-item">
+        <div class="project-admin-main">
+          <p class="project-admin-visibility"></p>
+          <h3 class="project-admin-name"></h3>
+          <p class="project-admin-slug"></p>
+          <p class="project-admin-meta"></p>
+        </div>
+        <div class="project-admin-actions">
+          <button class="button button-secondary link-edit" type="button">編輯</button>
+          <button class="button button-quiet link-delete" type="button">刪除</button>
+        </div>
+      </li>
+    </template>
+
+    <script src="/admin/admin.js" defer></script>
+    <script src="/site-footer.js" defer></script>
+  </body>
+</html>

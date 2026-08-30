@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ai-project-hub": {
+      "command": "node",
+      "args": ["<專案絕對路徑>/bin/hub-mcp.mjs"]
+    }
+  }
+}

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>經典連連看 (Shisen-Sho) - 甜點 / 科技 / 魔法</title>
+  <meta name="description" content="經典二角消除連連看網頁遊戲，支援 5x5 與 10x5 盤面切換，內建烘焙甜點、科技符號、魔法藥水 3 款精美主題。">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="theme-dessert">
+  <div class="game-container">
+    <!-- 頂部資訊與計分面板 -->
+    <header class="game-header">
+      <div class="header-left">
+        <div class="brand-area">
+          <span class="brand-icon" id="brand-icon">🧁</span>
+          <h1 class="brand-title">經典連連看</h1>
+        </div>
+
+        <!-- 規格與主題切換下拉選單 -->
+        <div class="selector-group">
+          <div class="select-wrapper">
+            <span class="select-label">規格:</span>
+            <select id="select-size" class="custom-select" aria-label="選擇棋盤規格">
+              <option value="5x5" selected>5 × 5 (快速)</option>
+              <option value="10x5">10 × 5 (進階)</option>
+            </select>
+          </div>
+
+          <div class="select-wrapper">
+            <span class="select-label">主題:</span>
+            <select id="select-theme" class="custom-select" aria-label="選擇視覺主題">
+              <option value="dessert" selected>🧁 烘焙甜點</option>
+              <option value="tech">⚡ 科技符號</option>
+              <option value="potion">🧪 魔法藥水</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-box">
+          <span class="stat-label">時間</span>
+          <span id="stat-time" class="stat-value">00:00</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">剩餘對數</span>
+          <span id="stat-pairs" class="stat-value">12</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">得分</span>
+          <span id="stat-score" class="stat-value">0</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">最高紀錄</span>
+          <span id="stat-best" class="stat-value">0</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">連擊</span>
+          <span id="stat-combo" class="stat-value">0</span>
+        </div>
+        <div id="combo-badge" class="combo-badge">2 連擊！</div>
+      </div>
+    </header>
+
+    <!-- 操作控制列 -->
+    <section class="controls-bar" aria-label="遊戲控制">
+      <div class="action-group">
+        <button id="btn-hint" class="action-btn" title="顯示一組可用配對">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 18h6"></path>
+            <path d="M10 22h4"></path>
+            <path d="M12 2a7 7 0 0 0-7 7c0 2.5 1.5 4.5 3 6h8c1.5-1.5 3-3.5 3-6a7 7 0 0 0-7-7z"></path>
+          </svg>
+          <span>提示</span>
+          <span id="hint-count" class="btn-badge">3</span>
+        </button>
+
+        <button id="btn-shuffle" class="action-btn" title="手動重新洗牌">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 3 21 3 21 8"></polyline>
+            <line x1="4" y1="20" x2="21" y2="3"></line>
+            <polyline points="21 16 21 21 16 21"></polyline>
+            <line x1="15" y1="15" x2="21" y2="21"></line>
+            <line x1="4" y1="4" x2="9" y2="9"></line>
+          </svg>
+          <span>洗牌</span>
+          <span id="shuffle-count" class="btn-badge">3</span>
+        </button>
+
+        <button id="btn-restart" class="action-btn" title="重新開始本局">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1 4 1 10 7 10"></polyline>
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+          </svg>
+          <span>重開</span>
+        </button>
+
+        <button id="btn-mute" class="action-btn" title="音效開關">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+          </svg>
+          <span>音效</span>
+        </button>
+      </div>
+
+      <div class="action-group">
+        <button id="btn-new-game" class="action-btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          <span>新遊戲</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 棋盤主體與 Canvas 軌跡層 (全視窗不需捲動) -->
+    <main class="board-wrapper">
+      <div id="game-board" class="game-board" role="grid" aria-label="連連看棋盤"></div>
+      <canvas id="trail-canvas" class="trail-canvas"></canvas>
+    </main>
+  </div>
+
+  <!-- 浮動訊息 Toast -->
+  <div id="game-toast" class="game-toast" role="status" aria-live="polite"></div>
+
+  <!-- 通關勝利結算彈窗 -->
+  <div id="modal-win" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="win-title">
+    <div class="modal-card">
+      <div class="win-icon">🎉</div>
+      <h2 id="win-title" class="win-title">大獲全勝！</h2>
+      <p class="win-desc">恭喜您消除所有卡牌，順利通關！</p>
+      <div class="win-stats-list">
+        <div class="win-stat-row">
+          <span>通關時間</span>
+          <span id="win-time">00:00</span>
+        </div>
+        <div class="win-stat-row">
+          <span>最終得分</span>
+          <span id="win-score">0</span>
+        </div>
+        <div class="win-stat-row">
+          <span>最高連擊</span>
+          <span id="win-combo">0</span>
+        </div>
+      </div>
+      <button id="btn-play-again" class="action-btn btn-primary btn-full">
+        再來一局
+      </button>
+    </div>
+  </div>
+
+  <!--
+    範例專案的說明頁尾（2026-08-29 新增）。
+
+    刻意**不含**版權宣告與部署時間戳。
+    兩個理由，已向使用者說明並取得例外：
+      1. 這個頁面設計上會被交給老師、由**他的**帳號部署，他也可以改成自己的
+         內容。掛上作者的版權宣告，等於在別人的網站上蓋自己的章。
+      2. `hub ship` 目前沒有為它部署的專案注入部署時間的機制（展示中心自己
+         有，靠 scripts/write-build-info.mjs；被部署的專案沒有）。時間寫死
+         等於謊報，用前端 new Date() 取則是 docs/10 §3 明文禁止的。
+  -->
+  <footer class="sample-note">
+    <p class="sample-note-title">這是 AI Project Hub 附的範例專案</p>
+    <p>放它在這裡，只是為了讓你第一次就看到自己的網站上真的有東西。</p>
+    <p>你可以直接刪掉它，或者把它改成你自己的內容。</p>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

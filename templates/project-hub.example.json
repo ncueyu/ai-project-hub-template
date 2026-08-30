@@ -1,0 +1,8 @@
+{
+  "name": "電阻色碼互動練習",
+  "slug": "resistor-color-code",
+  "visibility": "public",
+  "platform": "cloudflare",
+  "project_type": "static",
+  "database_type": "none"
+}

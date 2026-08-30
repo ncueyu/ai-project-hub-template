@@ -1,0 +1,8 @@
+{
+  "name": "fixture-worker",
+  "private": true,
+  "main": "src/index.js",
+  "dependencies": {
+    "react": "^19.0.0"
+  }
+}

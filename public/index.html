@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- description 刻意不個人化：這是給搜尋引擎爬蟲看的，爬蟲不執行 JS，
+         套用 /api/site 的站名對它沒有作用（見 2026-08-27-工作計畫-站名與
+         hub-init.md 第三節 Part A-2）。維持中性描述即可。 -->
+    <meta name="description" content="專案展示中心：集中呈現已完成並公開分享的作品。" />
+    <!-- 站名部分（｜之後）是中性預設值，由 site-footer.js 讀到 /api/site
+         後即時換成管理者設定的站名，見 data-site-title-prefix。 -->
+    <title>展示中心｜專案展示中心</title>
+    <!--
+      在 CSS 生效前先掛上上次記住的配色，消除閃爍。
+
+      為什麼需要這一段：主題存在資料庫裡，而這幾頁都是靜態 HTML——要等
+      site-footer.js 打完 /api/site 才知道該套哪一套。中間那段空窗期畫面會
+      先用預設配色畫一次再跳掉，越慢的網路越明顯。
+
+      刻意寫成內嵌的同步 script：外部檔案會多一次請求，而且不保證在第一次
+      繪製前執行完。這段只有幾行，內嵌的成本低於它換來的效果。
+
+      localStorage 在無痕視窗或封鎖網站資料時會直接拋錯，所以整段包在
+      try 裡——記不住頂多閃一下，不能讓它擋住整頁。
+    -->
+    <script>
+      try {
+        var t = localStorage.getItem("hub-site-theme");
+        if (t && t !== "zero" && ["one", "two", "three"].indexOf(t) !== -1) {
+          document.documentElement.setAttribute("data-theme", t);
+        }
+      } catch (e) {
+        /* 讀不到就用預設配色 */
+      }
+    </script>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/gallery.css" />
+  </head>
+  <body data-site-title-prefix="展示中心">
+    <a class="skip-link" href="#main-content">跳至主要內容</a>
+
+    <header class="site-header shell">
+      <!-- aria-label 的站名部分是中性預設值，由 site-footer.js 换成實際站名
+           （data-site-aria-suffix 標出「站名之後要接的字」）。 -->
+      <a class="brand" href="/" aria-label="專案展示中心 首頁" data-site-aria-suffix="首頁">
+        <!-- 預設 logo-01：後台可換成 logo-02~04（見 public/site-footer.js
+             的 applySiteLogo()），這裡的初始 img 只是 JS 尚未執行前的
+             預設畫面，避免出現舊的裝飾字母後又被換成圖片的閃爍。 -->
+        <span class="brand-mark" aria-hidden="true"><img src="/logos/logo-01.png" alt="" /></span>
+        <span>
+          <span class="brand-name">展示中心</span>
+          <span class="brand-subtitle">專案展示中心</span>
+        </span>
+      </a>
+      <nav class="site-nav" aria-label="主要導覽">
+        <a class="nav-link is-active" href="/" aria-current="page">展示中心</a>
+        <!-- 2026-08-27：改為固定顯示，並刪除原本的 admin-nav.js 探測。
+             原設計是「HEAD 探測 /admin/，成功才顯示」，避免後台關閉時留一個
+             必定 404 的連結。但那個探測從 2026-08-25 加入密碼閘道後就永遠失敗：
+             閘道用 Sec-Fetch-Dest 判斷是否為使用者導覽，而網頁 JS 發出的
+             fetch 一定是 Sec-Fetch-Dest: empty，永遠被判成子資源而回 404。
+             那個標頭由瀏覽器設定、JS 改不了，所以探測無法修好——除非弱化閘道，
+             而閘道的判斷是對的（Sec-Fetch-Dest 比 Accept 難偽造）。
+             另外兩個理由：ADMIN_ENABLED 自 2026-08-26 起預設為 "true"，
+             「後台關閉」已是罕見例外；且隱藏連結沒有實質安全效果——/admin/
+             是最好猜的路徑，真正的保護是密碼閘道。 -->
+        <a class="nav-link" href="/admin/">管理後台</a>
+      </nav>
+    </header>
+
+    <main id="main-content">
+      <section class="gallery-intro shell" aria-labelledby="page-title">
+        <h1 id="page-title">我做過並公開分享的專案</h1>
+        <p class="gallery-lede">
+          每一項都可以直接開啟試用。你可以依分類或標籤篩選，找到想看的主題。
+        </p>
+      </section>
+
+      <section class="shell gallery-section" aria-labelledby="projects-title">
+        <div class="gallery-heading">
+          <h2 id="projects-title">全部專案</h2>
+          <p class="gallery-count" id="project-count" role="status" aria-live="polite"></p>
+        </div>
+
+        <div class="filter-groups" id="filter-groups" hidden>
+          <div class="filter-group" id="category-filter-group" hidden>
+            <h3 class="filter-title" id="category-filter-title">依分類</h3>
+            <div class="filter-list" role="group" aria-labelledby="category-filter-title" id="category-filters"></div>
+          </div>
+          <div class="filter-group" id="tag-filter-group" hidden>
+            <h3 class="filter-title" id="tag-filter-title">依標籤</h3>
+            <div class="filter-list" role="group" aria-labelledby="tag-filter-title" id="tag-filters"></div>
+          </div>
+        </div>
+
+        <!-- 載入中 -->
+        <div class="gallery-state" id="gallery-loading">
+          <p>正在載入專案清單…</p>
+        </div>
+
+        <!-- 載入失敗 -->
+        <div class="gallery-state gallery-state-error" id="gallery-error" role="alert" hidden>
+          <h3>目前無法載入專案清單</h3>
+          <p id="gallery-error-message">請稍後再試一次。</p>
+          <button class="button button-primary" type="button" id="gallery-retry">重新載入</button>
+        </div>
+
+        <!-- 沒有資料 -->
+        <div class="gallery-state" id="gallery-empty" hidden>
+          <!-- 這兩句是 JS 還沒接手前的靜態預設值。app.js 的 render() 會依三種
+               情況改寫（見那裡的註解）：篩選無結果／有專案但都沒公開／完全沒有專案。
+               預設文字取「完全沒有專案」那一種——那是首次載入最可能的狀態，
+               而且萬一 JS 沒跑或 API 掛掉，這句話至少不會誤導人。
+               2026-08-29 更正：原本的預設是「之後有新的公開專案時就會顯示在這裡」，
+               在新設計下已經跟三個分支都不一致。 -->
+          <h3 id="gallery-empty-title">你的展示中心已經上線了</h3>
+          <p id="gallery-empty-message">目前還沒有專案。下一步請跟 AI 說「部署範例專案」，你就會看到第一個專案出現在這裡。</p>
+          <button class="button button-secondary" type="button" id="gallery-clear-filter" hidden>清除篩選條件</button>
+        </div>
+
+        <ul class="project-grid" id="project-grid" hidden></ul>
+      </section>
+
+      <!-- 推薦連結：獨立區塊，不與專案卡片混排（2026-08-27 工作計畫需求 A）。
+           一個連結都沒有時 app.js 會把整個區塊設成 hidden——這個 section
+           只套用 .shell（只有 width/margin，沒有 display），刻意不套用任何
+           會設定 display 的 class，這樣瀏覽器內建的 [hidden] → display:none
+           才不會被覆蓋（見 tools/pitfalls.mjs 的 hidden-overridden-by-class，
+           本專案已踩過四次；display 只放在裡面的 .links-grid 上）。 -->
+      <section class="shell" id="links-section" aria-labelledby="links-title" hidden>
+        <div class="gallery-heading">
+          <h2 id="links-title">推薦連結</h2>
+        </div>
+        <ul class="links-grid" id="links-grid"></ul>
+      </section>
+
+    </main>
+
+    <footer data-site-footer></footer>
+
+    <template id="project-card-template">
+      <li class="project-card">
+        <article>
+          <div class="project-thumb">
+            <img alt="" loading="lazy" decoding="async" />
+            <div class="project-thumb-fallback">
+              <svg viewBox="0 0 48 48" focusable="false" aria-hidden="true">
+                <rect x="8" y="12" width="32" height="24" rx="4" />
+                <circle cx="18" cy="21" r="3" />
+                <path d="M12 33l9-9 7 7 4-4 6 6" />
+              </svg>
+              <!-- 中性措辭是刻意的：這段文字訪客也看得到。
+                   寫「請把截圖放進專案資料夾」對訪客毫無意義，還會讓網站顯得沒做完；
+                   「尚無預覽圖」讀起來自然，作者也一眼看得出缺圖。
+                   給作者的明確指示放在 hub check 的終端機輸出，那裡只有操作者看得到。 -->
+              <p class="project-thumb-note">此專案尚無預覽圖</p>
+            </div>
+          </div>
+          <div class="project-body">
+            <p class="project-meta">
+              <span class="project-category" hidden></span>
+              <!-- 型態標記：只有「不是可直接開啟的網站」的專案才顯示。
+                   桌面程式與瀏覽器擴充功能若和一般網站長得一樣，訪客會按下「開啟」
+                   期待看到應用程式，結果拿到一張說明頁——先講清楚比事後解釋好。 -->
+              <span class="project-kind" hidden></span>
+              <!-- 權限標記：只有「需要密碼」的專案才顯示。
+                   加密專案刻意列在展示中心（2026-08-23 裁定）——不列出的話沒有人
+                   知道它存在、也不會來要密碼。先標明打不開，訪客才不會以為網站壞了。 -->
+              <span class="project-access" hidden></span>
+              <!-- 日期放在這一行的最後（2026-08-28 使用者裁定的精簡版面）。
+                   格式刻意壓成 YY-MMDD（例如 26-0822）而非「最後更新：2026年8月22日」
+                   ——卡片高度壓到 356px 後，完整格式會自己佔掉一整行，而日期對訪客的
+                   價值低於說明文字。滑鼠停留時的 title 會顯示完整日期，語意不會流失。 -->
+              <span class="project-updated" hidden></span>
+            </p>
+            <!-- 名稱與說明一樣需要外層裁切容器：兩者都是 .project-body 的
+                 flex 子元素，而 flex 子元素的 display 會被瀏覽器區塊化，
+                 -webkit-line-clamp 因此完全無效（2026-08-28 實測）。
+                 沒有這層容器的話，很長的名稱會一直往下長、把說明整段吃掉。 -->
+            <div class="project-name-clip">
+              <h3 class="project-name"></h3>
+            </div>
+            <!-- 說明外面必須包一層容器（2026-08-28 實測後才確定的做法）。
+                 原因：-webkit-line-clamp 只在 display: -webkit-box 上生效，而
+                 flex 子元素的 display 會被瀏覽器區塊化（實測 computed value 變成
+                 flow-root），所以說明**直接當 flex 子元素時 clamp 永遠無效**。
+                 改成「外層當 flex 子元素、負責限高與裁切；內層只管字級與行高」，
+                 三行才真的放得下。 -->
+            <div class="project-description-clip">
+              <p class="project-description"></p>
+            </div>
+            <ul class="project-tags" hidden></ul>
+          </div>
+          <!-- project-open 於 2026-08-28 主畫面改造 Part B 移出 .project-body，
+               成為 article 的第三個直接子元素——固定高度卡片用 grid-template-rows
+               把 article 切成「縮圖／說明區／按鈕區」三段，這裡必須是獨立的
+               grid 項目才能單獨佔一段固定高度（見 public/gallery.css 的
+               .project-card > article 規則與說明）。 -->
+          <p class="project-open"></p>
+        </article>
+      </li>
+    </template>
+
+    <template id="link-card-template">
+      <li class="link-card">
+        <a class="link-card-link" target="_blank" rel="noopener noreferrer">
+          <span class="link-card-icon" aria-hidden="true"></span>
+          <span class="link-card-body">
+            <span class="link-card-name"></span>
+            <span class="link-card-description"></span>
+            <span class="link-card-category" hidden></span>
+          </span>
+        </a>
+      </li>
+    </template>
+
+    <script src="/app.js" defer></script>
+    <script src="/site-footer.js" defer></script>
+  </body>
+</html>

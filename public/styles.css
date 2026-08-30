@@ -1,0 +1,1125 @@
+/*
+ * 色彩與字型依 design-system/ai-project-hub/MASTER.md。
+ * 變數名稱刻意維持不變，讓既有頁面（含階段一教材）自動沿用新樣式，
+ * 不需要修改任何 HTML 結構或 class 名稱。
+ *
+ * 不再匯入 Google Fonts：MASTER.md 要求使用系統原生字型，
+ * 這同時省去外部字型的載入時間，也讓中文顯示交給作業系統處理。
+ */
+
+:root {
+  --color-primary: #1d1d1f;
+  --color-on-primary: #ffffff;
+  --color-secondary: #515154;
+  --color-accent: #35677d;
+  --color-accent-hover: #285367;
+  --color-background: #f6f6f4;
+  --color-surface: #ffffff;
+  --color-surface-cool: #edf3f4;
+  --color-surface-warm: #f4f0e9;
+  --color-foreground: #1d1d1f;
+  --color-muted: #edf3f4;
+  --color-subtle: #6e6e73;
+  --color-border: #dededb;
+  --color-destructive: #a4342c;
+  --color-success: #2f6b4f;
+  --color-warning: #8a6320;
+  --color-ring: #35677d;
+
+  /*
+   * 2026-08-29：以下這些原本寫死在 gallery.css、admin.css 與本檔各處。
+   *
+   * 收上來的理由不是整潔，是**功能上的必要**：站台風格切換只會覆寫 :root 的
+   * token，寫死在規則裡的色碼不會跟著換——結果會是換了風格但邊框、標籤、
+   * 按鈕還是舊顏色，看起來像壞掉。
+   *
+   * 每一個值都與原本寫死的字面值**完全相同**，所以這次搬移不改變任何外觀。
+   */
+
+  /* 狀態：成功 */
+  --color-success-surface: #e6efe9;
+  --color-success-surface-soft: #eef4f0;
+
+  /* 狀態：提醒／需要注意（琥珀） */
+  --color-warning-text: #8a5a12;
+  --color-warning-strong: #7a5a1e;
+  --color-warning-outline: #b8791f;
+  --color-warning-surface: #fdf1d8;
+  --color-warning-surface-soft: #fdf3e0;
+  --color-warning-border: #e3d9c6;
+
+  /* 狀態：危險 */
+  --color-destructive-text: #7a2b24;
+  --color-destructive-strong: #8c2c25;
+  --color-destructive-surface: #f4e7e5;
+
+  /* 專案卡片上的標籤：值等同原本寫死的 --color-surface-cool／--color-secondary */
+  --color-tag-surface: #edf3f4;
+  --color-tag-text: #515154;
+
+  /* 中性 */
+  --color-border-hover: #c9d4d8;
+  --color-border-dashed: #a1a1aa;
+  --color-subtle-cool: #6b8288;
+  --color-subtle-neutral: #71717a;
+  --color-surface-neutral: #f1f3f5;
+
+  /* 主按鈕 hover：刻意與 --color-accent-hover 分開，兩者原本就是不同的值 */
+  --color-button-primary-hover: #1d4ed8;
+
+  /* 標章 */
+  --color-badge-blue-surface: #dbeafe;
+  --color-badge-blue-text: #1d4ed8;
+  --color-badge-green-surface: #dcfce7;
+  --color-badge-green-text: #166534;
+  --color-badge-amber-surface: #fef3c7;
+  --color-badge-amber-text: #92400e;
+
+  /* 提示卡 */
+  --color-notice-border: #fbbf24;
+  --color-notice-surface: #fffbeb;
+  --color-notice-icon-surface: #fef3c7;
+  --color-notice-text: #78350f;
+
+  --radius-card: 22px;
+  --radius-panel: 32px;
+
+  /*
+   * 按鈕造型（2026-08-30 新增）。值等同原本寫死在 .button 裡的 8px／1px，
+   * 所以方案零外觀不變；三套新風格各自覆寫，讓「手感」而不只是色相不同。
+   */
+  --radius-button: 8px;
+  --width-button-border: 1px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC",
+    "PingFang TC", "Microsoft JhengHei", sans-serif;
+  /* 等寬字型只保留給指令與程式碼區塊使用，不作為裝飾性的技術感字體。 */
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas,
+    "Liberation Mono", Menlo, monospace;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 5%);
+  --shadow-md: 0 4px 6px rgb(0 0 0 / 10%);
+  --shadow-lg: 0 10px 15px rgb(0 0 0 / 10%);
+}
+
+/*
+ * ── 配色風格（2026-08-29）──────────────────────────────────────────
+ *
+ * 來源：`AI-Project-Hub-三種網站風格與主卡搭配.md`。管理者在後台選一種，
+ * `data-theme` 由 `public/site-footer.js` 掛在 <html> 上（每個頁面都載入
+ * 那支腳本，所以展示中心與後台會一起換）。
+ *
+ * **方案零＝上面的 :root，這裡刻意沒有 [data-theme="zero"] 區塊。**
+ * 預設值是 zero，沒有設定過的站台外觀與改版前完全一樣（2026-08-29 裁定）。
+ * 寫一個把值再抄一遍的 zero 區塊只會製造兩份會漂移的事實來源。
+ *
+ * 只覆寫風格文件明確給出的色。狀態色（成功／提醒／危險／提示卡／標章）
+ * 一律沿用共通值，理由是那些顏色的語意來自「這是警告」而不是「這個站台
+ * 是綠色系的」——把警告染成墨綠會讓它不再像警告。
+ *
+ * 兩個文件沒有規定、由本次實作判斷的值（可以推翻）：
+ *   - `--color-border-hover` 取該套的主色。文件沒給 hover 邊框，而篩選標籤
+ *     的 hover 本來就用主色，跟著它走比留一個藍灰色在墨綠配色裡協調。
+ *   - `--color-subtle-cool` 取該套的次要文字。它原本是偏藍的灰，留著會在
+ *     墨綠與青藍兩套裡顯得突兀。
+ *
+ * 三套各自的主卡視覺語言在 gallery.css（階段 D）；方案三的深色 Header
+ * 在本檔下方（2026-08-30 補）。
+ */
+
+/* 方案一：科技藍 × 石墨灰 */
+[data-theme="one"] {
+  /*
+   * 頁面底色 2026-08-30 從風格文件的 #f1f5f9 加深到 #e2e8f0。
+   *
+   * 使用者實測四套之後回報「整個頁面的底色都差不多，所以會覺得沒有什麼
+   * 差別」——四套原值的明度差不到 2%，而頁面九成面積是底色與白卡，
+   * 剩下的按鈕、標籤面積太小，撐不起「一眼分辨」。
+   *
+   * 這是**刻意偏離文件**的一項：文件的值假設「配色細膩、靠質感取勝」，
+   * 而這裡要的是選項之間看得出差別。方案零不動，既有站台不會變臉。
+   */
+  --color-background: #e2e8f0;
+  --color-surface: #ffffff;
+  --color-surface-cool: #f8fafc;
+  --color-border: #cbd5e1;
+  --color-border-hover: #2563eb;
+  --color-primary: #0f172a;
+  --color-foreground: #0f172a;
+  --color-secondary: #475569;
+  --color-subtle-cool: #475569;
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-ring: #2563eb;
+  --color-muted: #eff6ff;
+  --color-tag-surface: #dbeafe;
+  --color-tag-text: #1e40af;
+
+  /* 白色 Header：頁面底色加深後，白帶自己會浮出來。見下方 Header 區塊。 */
+  --color-header-surface: #ffffff;
+
+  /* 按鈕：小圓角，銳利俐落，對應這套「科技、乾淨」的定位。 */
+  --radius-button: 4px;
+}
+
+/* 方案二：墨綠 × 米灰 */
+[data-theme="two"] {
+  /* 底色加深，理由同方案一（原值 #f4f5f2）。米灰帶綠，襯白卡。 */
+  --color-background: #e9ece3;
+  --color-surface: #ffffff;
+  --color-surface-cool: #f7f8f5;
+  --color-border: #cdd3cc;
+  --color-border-hover: #16705a;
+  --color-primary: #17201b;
+  --color-foreground: #17201b;
+  --color-secondary: #59645d;
+  --color-subtle-cool: #59645d;
+  --color-accent: #16705a;
+  --color-accent-hover: #115846;
+  --color-ring: #16705a;
+  --color-muted: #e8f3ee;
+  --color-tag-surface: #dcede5;
+  --color-tag-text: #145c49;
+
+  /* 淡綠色底色帶，比頁面底色淺一階。見下方 Header 區塊。 */
+  --color-header-surface: #eef4f0;
+
+  /* 按鈕：全圓角膠囊，柔和安靜，對應這套的定位。 */
+  --radius-button: 999px;
+}
+
+/* 方案三：深藍灰 × 青藍 */
+[data-theme="three"] {
+  /* 底色加深，理由同方案一（原值 #f3f4f6）。中性灰，襯深色 Header。 */
+  --color-background: #e5e7eb;
+  --color-surface: #ffffff;
+  --color-surface-cool: #f8fafc;
+  --color-border: #d1d5db;
+  --color-border-hover: #0891b2;
+  --color-primary: #111827;
+  --color-foreground: #111827;
+  --color-secondary: #4b5563;
+  --color-subtle-cool: #4b5563;
+  --color-accent: #0891b2;
+  --color-accent-hover: #0e7490;
+  --color-ring: #0891b2;
+  --color-muted: #ecfeff;
+  --color-tag-surface: #cffafe;
+  --color-tag-text: #155e75;
+
+  /*
+   * 方案三獨有：主卡是深色的（風格文件第五節「深色主卡＋青藍角標」）。
+   * 這幾個值只在 gallery.css 的主卡規則裡被引用，用來就地覆寫該張卡片的
+   * 一般 token——放在這裡而不是 gallery.css，是為了讓一套風格的所有顏色
+   * 集中在同一個地方，也讓「gallery.css 不得出現寫死色碼」那條契約成立。
+   */
+  --color-primary-card-surface: #172033;
+  --color-primary-card-surface-cool: #1e2a42;
+  --color-primary-card-foreground: #ffffff;
+  --color-primary-card-secondary: #cbd5e1;
+  --color-primary-card-border: #2a3a57;
+  --color-primary-card-tag-surface: #1e3a4a;
+  --color-primary-card-tag-text: #a5f3fc;
+
+  /*
+   * 深色 Header（風格文件第四節：「淺色網站＋深色 Header＋深色主卡」）。
+   *
+   * 這是方案三最強烈的識別特徵。2026-08-30 補上——先前兩個階段都把它標成
+   * 「延後」，結果一路漏到底，使用者回報「每個選項變化不大」時才發現
+   * 方案三只做了三分之二。
+   *
+   * accent 用比主色更亮的青（#22d3ee）：#0891b2 放在 #172033 上對比不足。
+   */
+  /* 按鈕：幾乎直角＋較粗邊框，三套裡最強烈、最有技術感的一種。 */
+  --radius-button: 2px;
+  --width-button-border: 2px;
+
+  --color-header-surface: #172033;
+  --color-header-text: #f8fafc;
+  --color-header-muted: #cbd5e1;
+  --color-header-accent: #22d3ee;
+}
+
+/*
+ * ── 每套風格各自的 Header（2026-08-30）─────────────────────────────
+ *
+ * Header 在每一頁的最上方、一眼就看到，是「這是哪一套配色」最有效的訊號。
+ * 使用者實測後回報四套差別太小，這一組規則與上面加深的頁面底色是同一次
+ * 回應。方案零維持原樣（透明底、細邊線），既有站台不受影響。
+ *
+ * 三套共用的底色出血寫在這裡，各自的差異寫在下面。
+ *
+ * **用 box-shadow ＋ clip-path，不用 100vw 的偽元素**：`.site-header` 同時
+ * 掛著 .shell（寬度上限 1320px、置中），只上 background 會變成一塊置中的
+ * 色塊、兩側露出頁面底色。第一版寫成 `inset: 0 calc(50% - 50vw)` 的絕對
+ * 定位偽元素，實測造成 8px 水平溢出（scrollWidth 1273 vs clientWidth 1265）
+ * ——100vw 含捲軸寬度而可視區不含。box-shadow 完全不參與版面與捲動溢出的
+ * 計算，天生沒有這個問題。
+ *
+ * clip-path 的負值只放寬左右：`inset(0 -100vmax)` 讓上下切齊 header 邊界，
+ * 左右各放行 100vmax。沒有它的話陰影會往四面八方糊住整頁。
+ */
+[data-theme="one"] .site-header,
+[data-theme="two"] .site-header,
+[data-theme="three"] .site-header {
+  background: var(--color-header-surface);
+  box-shadow: 0 0 0 100vmax var(--color-header-surface);
+  clip-path: inset(0 -100vmax);
+}
+
+/*
+ * 方案一：白色 Header ＋ 一條粗主色底線。
+ *
+ * 頁面底色加深成 #e2e8f0 之後，白色 Header 會自己浮出來成為一條明確的
+ * 橫帶；底線用主色加粗到 3px，是這套「科技、俐落」定位最直接的表達。
+ * 文字顏色不動——白底上原本的深色文字本來就正確。
+ */
+[data-theme="one"] .site-header {
+  border-bottom: 3px solid var(--color-accent);
+}
+
+/*
+ * 方案二：淡綠色底色帶。
+ *
+ * 這套的定位是「沉穩、安靜」，所以不加線，只用一塊比頁面底色更淺、
+ * 帶綠的色帶把 Header 與內容分開。邊線改成透明，避免色帶下緣多一條
+ * 跟色帶本身無關的灰線。
+ */
+[data-theme="two"] .site-header {
+  border-bottom-color: transparent;
+}
+
+/*
+ * 方案三：深色 Header（風格文件第四節「淺色網站＋深色 Header＋深色主卡」）。
+ *
+ * 顏色靠就地重新定義 token，與主卡的深色化是同一套手法；
+ * 但文字另外再明確宣告一次，理由見下一段。
+ */
+[data-theme="three"] .site-header {
+  border-bottom-color: transparent;
+
+  --color-foreground: var(--color-header-text);
+  --color-primary: var(--color-header-text);
+  --color-secondary: var(--color-header-muted);
+  --color-subtle: var(--color-header-muted);
+  --color-accent: var(--color-header-accent);
+}
+
+/*
+ * 標題列文字的顏色**另外明確宣告一次**，不只靠上面那組 token 覆寫。
+ *
+ * 這是刻意的重複。上面的做法（就地重新定義 token）在主卡上運作良好，
+ * 但開發時的瀏覽器環境對 header 的解析不一致：實測 `.brand-subtitle` 與
+ * `.nav-link` 位在同一個子樹、同樣讀 `--color-secondary`、兩者拿到的 token
+ * 值都是 #cbd5e1，卻只有前者的 color 生效，後者算出基準 :root 的 #1d1d1f。
+ * 那個環境無法用來確認這件事到底是誰的問題。
+ *
+ * 而這裡失敗的後果是**深色底配深色字，整條導覽變成看不見**——這種風險
+ * 不該押在一個當下驗證不了的機制上。明確宣告的優先度更高，不依賴 token
+ * 覆寫有沒有被正確採用。
+ */
+[data-theme="three"] .site-header .brand-name,
+[data-theme="three"] .site-header .nav-link.is-active {
+  color: var(--color-header-text);
+}
+
+[data-theme="three"] .site-header .brand-subtitle,
+[data-theme="three"] .site-header .nav-link {
+  color: var(--color-header-muted);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.65;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+a {
+  cursor: pointer;
+}
+
+a:focus-visible,
+button:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+/*
+ * 全站統一的內容寬度。
+ *
+ * 2026-08-28 從 1120px 加寬到 1320px：使用者要求「專案中所有的頁面寬度都要
+ * 調整跟主頁面一樣」。先前（同一天）展示中心加寬時刻意**沒有**動這個共用值、
+ * 改用另一個 .gallery-wide 疊加，理由是「後台與教材頁會被一起拉寬」——
+ * 現在使用者明確要的就是那個結果，所以那個迴避作法已無必要，一併移除，
+ * 不留兩個做同一件事的 class。
+ *
+ * 1320px 是實測後決定的：1280px 視窗下 calc(100% - 40px) 先生效，容器實際
+ * 量到 1225px，展示中心 4 欄 ＋ 3 個 28px 間距 → 每欄 285.25px，
+ * 縮圖與文字都還讀得清楚。1320px 上限只在比 1280 更寬的螢幕才真正生效。
+ */
+.shell {
+  width: min(1320px, calc(100% - 40px));
+  margin-inline: auto;
+}
+
+.skip-link {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  padding: 8px 12px;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  transform: translateY(-160%);
+  transition: transform 180ms ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 88px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  gap: 12px;
+  text-decoration: none;
+}
+
+.brand-mark {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  place-items: center;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.05em;
+}
+
+/*
+ * 2026-08-28 新增：`.brand-mark` 的內容從裝飾用字母換成可在後台更換的
+ * logo 圖片（見 2026-08-28-工作計畫-主畫面改造.md Part A）。圖片一律填滿
+ * 容器：容器本身的寬高才是實際尺寸來源——CSS 給 44×44px 的預設值，
+ * `public/site-footer.js` 會依右側「展示中心」＋站名兩行文字的實際高度，
+ * 用行內樣式覆寫容器的寬高（正方形），這裡的 `width/height: 100%` 讓圖片
+ * 永遠跟著容器縮放，不需要另外計算圖片本身的尺寸。
+ * `object-fit: contain` 是因為四張預設 logo 都是 1:1 的正方形，但不假設
+ * 使用者以後換上的圖檔一定是正方形——避免非正方形圖片被拉伸變形。
+ */
+.brand-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.brand-name,
+.brand-subtitle,
+.eyebrow,
+.result-count,
+.module-code,
+.module-status,
+.metric-label,
+.metric-note,
+.system-card-heading,
+.site-footer,
+.nav-link {
+  font-weight: 500;
+}
+
+.brand-name,
+.brand-subtitle {
+  display: block;
+}
+
+.brand-name {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/*
+ * 站名（＝ brand-subtitle）刻意比 brand-name 更大。
+ *
+ * 2026-08-28 使用者要求：站名要跟上一行的「展示中心」看起來一樣寬。但拉丁字母
+ * 的字身寬度遠小於中文字（「yucs」4 個字母 ≈ 2.3em，「展示中心」4 個中文字 ≈ 4.2em），
+ * 同一個字級不可能等寬——要視覺等寬，站名的字級就必須明顯更大。
+ *
+ * 這裡的 20px 只是**基準值**，實際字級由 `public/site-footer.js` 的
+ * `fitSiteNameWidth()` 在執行期依主標寬度換算後覆寫——因為站名是變數，
+ * 任何寫死的字級都只能服務一種長度（實測：「yucs」要 34px 才跟 17px 的
+ * 「展示中心」等寬，但 6 個中文字的「專案展示中心」在 34px 下會超過 200px）。
+ * JS 失效時就用這個基準值，不會太大也不會太小。
+ * 代價：站名很長時（例如「李老師的AI展示中心」）會比 brand-name 寬不少，
+ * 這是變數長度不可避免的結果；因此下面用 max-width 加上 100% 上限，
+ * 讓過長的站名不會把整個標頭撐開。
+ */
+.brand-subtitle {
+  margin-top: 1px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--color-secondary);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+}
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.nav-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-block: 8px;
+  color: var(--color-secondary);
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: color 180ms ease;
+}
+
+/* hidden 屬性必須真的隱藏。
+   上面的 `.nav-link { display: inline-flex }` 是類別選擇器，優先度高於
+   hidden 屬性帶來的瀏覽器預設 `display: none`，因此單加 hidden 不會生效。
+   （2026-08-17 實際踩到：管理後台連結加了 hidden 卻照樣顯示。） */
+.nav-link[hidden] {
+  display: none;
+}
+
+/* hidden 屬性只是靠瀏覽器預設樣式的 display: none 生效，
+   任何來自 class 選擇器的 display 都會蓋掉它。
+   `.button` 是 inline-flex，所以只要有 JS 對按鈕設 hidden（例如展示中心的
+   「清除篩選條件」），沒有這條覆寫就會一直看得見。
+   這是本專案第三次踩到同一個坑（.nav-link、.project-category、.filter-group），
+   所以放在共用樣式表，讓全站所有按鈕一次解決。 */
+.button[hidden] {
+  display: none;
+}
+
+.nav-link:hover,
+.nav-link.is-active {
+  color: var(--color-foreground);
+}
+
+.nav-link.is-active::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--color-accent);
+  content: "";
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
+  gap: var(--space-3xl);
+  align-items: end;
+  padding-block: 88px 80px;
+}
+
+.hero-copy {
+  max-width: 720px;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--color-accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 0 4px rgb(21 128 61 / 12%);
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--color-foreground);
+  font-family: var(--font-mono);
+  line-height: 1.15;
+}
+
+h1 {
+  max-width: 760px;
+  margin-bottom: 24px;
+  font-size: clamp(2.25rem, 6vw, 5.25rem);
+  letter-spacing: -0.08em;
+}
+
+h1 span {
+  color: var(--color-accent);
+}
+
+.hero-lede {
+  max-width: 620px;
+  margin-bottom: 32px;
+  color: var(--color-secondary);
+  font-size: 18px;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.button {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border: var(--width-button-border) solid transparent;
+  border-radius: var(--radius-button);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+}
+
+.button svg {
+  width: 18px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.button-primary {
+  background: var(--color-accent);
+  color: var(--color-on-primary);
+}
+
+.button-primary:hover {
+  background: var(--color-button-primary-hover);
+}
+
+.button-secondary {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.button-secondary:hover {
+  background: var(--color-muted);
+}
+
+.system-card {
+  padding: 24px;
+  border: 1px solid var(--color-border);
+  border-top: 3px solid var(--color-accent);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.system-card-heading,
+.system-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.system-card-heading {
+  color: var(--color-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.badge-blue { background: var(--color-badge-blue-surface); color: var(--color-badge-blue-text); }
+.badge-green { background: var(--color-badge-green-surface); color: var(--color-badge-green-text); }
+.badge-amber { background: var(--color-badge-amber-surface); color: var(--color-badge-amber-text); }
+.badge-gray { background: var(--color-muted); color: var(--color-secondary); }
+
+.system-metric {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  align-items: end;
+  padding-block: 28px 20px;
+}
+
+.system-metric strong {
+  grid-row: span 2;
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 48px;
+  line-height: 1;
+}
+
+.metric-label {
+  color: var(--color-secondary);
+  font-size: 11px;
+}
+
+.metric-note {
+  color: var(--color-subtle-neutral);
+  font-size: 10px;
+}
+
+.system-divider {
+  height: 1px;
+  margin-bottom: 18px;
+  background: var(--color-border);
+}
+
+.system-row {
+  padding-block: 6px;
+  color: var(--color-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.text-success { color: var(--color-success); }
+.text-muted { color: var(--color-subtle-neutral); }
+
+.section {
+  padding-block: 0 88px;
+}
+
+.section-muted {
+  padding-block: 80px;
+  background: var(--color-surface-neutral);
+}
+
+.section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.section-heading h2,
+.admin-heading h1 {
+  margin-bottom: 0;
+  font-size: clamp(1.5rem, 3vw, 2.4rem);
+  letter-spacing: -0.06em;
+}
+
+.result-count {
+  padding-bottom: 4px;
+  color: var(--color-secondary);
+  font-size: 11px;
+}
+
+.empty-state {
+  display: grid;
+  min-height: 300px;
+  place-items: center;
+  align-content: center;
+  padding: 40px 24px;
+  border: 1px dashed var(--color-border-dashed);
+  background: var(--color-surface);
+  text-align: center;
+}
+
+.empty-icon,
+.notice-icon {
+  display: grid;
+  place-items: center;
+  background: var(--color-muted);
+  color: var(--color-accent);
+}
+
+.empty-icon {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 20px;
+  border-radius: 50%;
+}
+
+.empty-icon svg {
+  width: 28px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+.empty-state h3 {
+  margin-bottom: 8px;
+  font-size: 22px;
+}
+
+.empty-state > p:not(.eyebrow) {
+  max-width: 500px;
+  margin-bottom: 16px;
+  color: var(--color-secondary);
+}
+
+.resource-promo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 32px;
+  align-items: center;
+  padding-block: 24px 88px;
+}
+
+.resource-promo h2 {
+  margin-bottom: 8px;
+  font-size: clamp(1.5rem, 3vw, 2.4rem);
+  letter-spacing: -0.06em;
+}
+
+.resource-promo p:last-child {
+  max-width: 640px;
+  margin-bottom: 0;
+  color: var(--color-secondary);
+}
+
+.resource-promo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-accent);
+  font-size: 0.98rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 180ms ease;
+}
+
+.text-link:hover {
+  color: var(--color-accent-hover);
+}
+
+.principle-grid,
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.principle-card,
+.module-card {
+  padding: 24px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.principle-index,
+.module-code {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.principle-card h3,
+.module-card h2 {
+  margin: 28px 0 10px;
+  font-size: 18px;
+}
+
+.principle-card p,
+.module-card p {
+  margin-bottom: 0;
+  color: var(--color-secondary);
+}
+
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-top: auto;
+  padding-block: 28px 32px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-secondary);
+  font-size: 0.9rem;
+}
+
+.site-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--color-accent-hover);
+  text-decoration: underline;
+}
+
+.footer-info,
+.footer-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.footer-meta {
+  align-items: flex-start;
+}
+
+.site-footer p {
+  margin: 0;
+}
+
+.footer-copyright {
+  font-weight: 500;
+  color: var(--color-foreground);
+}
+
+.footer-author,
+.footer-updated {
+  color: var(--color-subtle);
+}
+
+.footer-environment {
+  margin-top: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--color-surface-warm);
+  color: var(--color-warning-strong);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+@media (min-width: 721px) {
+  .footer-meta {
+    align-items: flex-end;
+  }
+}
+
+.admin-main {
+  padding-block: 72px 96px;
+}
+
+.admin-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.admin-heading > div > p:last-child {
+  max-width: 600px;
+  margin: 16px 0 0;
+  color: var(--color-secondary);
+}
+
+.notice-card {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 24px;
+  border: 1px solid var(--color-notice-border);
+  background: var(--color-notice-surface);
+}
+
+.notice-icon {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-notice-icon-surface);
+  color: var(--color-warning);
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.notice-card h2 {
+  margin-bottom: 8px;
+  font-size: 18px;
+}
+
+.notice-card p:last-child {
+  margin-bottom: 0;
+  color: var(--color-notice-text);
+}
+
+.module-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.module-card h2 {
+  margin-top: 24px;
+}
+
+.module-card .text-link,
+.module-status {
+  display: inline-block;
+  margin-top: 20px;
+}
+
+.module-status {
+  color: var(--color-secondary);
+  font-size: 10px;
+}
+
+@media (max-width: 800px) {
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 40px;
+    padding-block: 64px;
+  }
+
+  .principle-grid,
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .resource-promo {
+    grid-template-columns: 1fr;
+  }
+
+  .resource-promo-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  /* 上限跟著上面的共用值改成 1320px（2026-08-28）。在 560px 以下這個上限
+     其實永遠不會生效（100% - 32px 一定更小），但留著過時的 1120 只會讓
+     下一個人以為窄螢幕有不同的上限。 */
+  .shell {
+    width: min(100% - 32px, 1320px);
+  }
+
+  .site-header,
+  .section-heading,
+  .admin-heading,
+  .site-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .site-header {
+    gap: 16px;
+    padding-block: 20px;
+  }
+
+  .site-nav {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  h1 {
+    font-size: clamp(2.1rem, 13vw, 3.6rem);
+  }
+
+  .hero-lede {
+    font-size: 16px;
+  }
+
+  .button {
+    width: 100%;
+  }
+
+  .resource-promo-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-heading {
+    align-items: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

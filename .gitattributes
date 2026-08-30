@@ -1,0 +1,46 @@
+# 換行處理規則
+#
+# 為什麼需要這個檔案：
+# 沒有 .gitattributes 時，換行行為取決於**每個 clone 的人**自己的
+# core.autocrlf 設定。這個 repo 之後要被別人 fork 當模板用，等於把
+# 「腳本能不能跑」交給對方的環境設定決定——那不是可接受的交付品質。
+#
+# 這個專案的腳本規矩（來自實際踩過的雷）：
+#   .bat / .cmd  必須 CRLF。用 LF 時 goto、標籤、部分語法會出錯，
+#                而且錯誤訊息不會指向換行，很難查。
+#   .sh          必須 LF。CRLF 會讓 shebang 變成 `#!/bin/sh\r`，
+#                系統找不到這個解譯器，回報的錯誤看起來像「檔案不存在」。
+#   兩者的要求方向相反，所以絕對不能整批套用同一種。
+#
+# .ps1 兩種換行 PowerShell 都吃，這裡設 CRLF 只是跟 Windows 慣例一致。
+# （.ps1 真正的地雷是編碼：含中文時必須是 UTF-8 with BOM，否則
+#   PowerShell 5.1 會讀成亂碼。那是編碼問題，.gitattributes 管不到，
+#   要在寫檔時處理。本 repo 目前的 .ps1 是純 ASCII，不受影響。）
+
+# 預設：讓 git 自動判斷文字檔，倉庫內一律存成 LF
+* text=auto eol=lf
+
+# --- 換行敏感的腳本，明確指定 ---
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.sh  text eol=lf
+
+# --- 二進位檔：明確標示，避免 git 嘗試做換行轉換或產生無意義的 diff ---
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.avif binary
+*.ico  binary
+*.pdf  binary
+*.zip  binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.otf  binary
+*.mp4  binary
+*.db   binary
+*.sqlite binary
+*.sqlite3 binary

@@ -1,0 +1,1033 @@
+/*
+ * 管理後台專用樣式。
+ * 沿用 styles.css 的色彩與字型變數（來源：MASTER.md）。
+ * 這個檔案只被 /admin/ 載入，展示中心與階段一教材頁不受影響。
+ */
+
+.admin-main {
+  padding-block: clamp(32px, 5vw, 56px) clamp(56px, 8vw, 96px);
+}
+
+.admin-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px 24px;
+  padding-bottom: 24px;
+}
+
+.admin-title-row h1 {
+  margin: 0 0 8px;
+  font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.1rem);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.admin-lede {
+  margin: 0;
+  max-width: 40rem;
+  color: var(--color-secondary);
+}
+
+.admin-hint {
+  margin: 0 0 16px;
+  color: var(--color-subtle);
+  font-size: 0.92rem;
+}
+
+.admin-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-section-head h2,
+.taxonomy-section h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 650;
+}
+
+/* ---------- 全域訊息 ---------- */
+
+.admin-flash {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 14px 18px;
+  border: 1px solid var(--color-border);
+  border-left-width: 4px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  font-size: 0.98rem;
+}
+
+.admin-flash[hidden] {
+  display: none;
+}
+
+/* 成功與失敗除了顏色，還有前置文字標示，不單靠顏色辨別。 */
+.admin-flash.is-success {
+  border-left-color: var(--color-success);
+  background: var(--color-success-surface-soft);
+}
+
+.admin-flash.is-error {
+  border-left-color: var(--color-destructive);
+  background: var(--color-surface-warm);
+}
+
+/* ---------- 狀態區塊 ---------- */
+
+.admin-state {
+  padding: clamp(32px, 5vw, 48px) 24px;
+  margin-top: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  text-align: center;
+}
+
+.admin-state h3 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+  font-weight: 650;
+}
+
+.admin-state p {
+  margin: 0 auto;
+  max-width: 32rem;
+  color: var(--color-secondary);
+}
+
+.admin-state .button {
+  margin-top: 18px;
+}
+
+.admin-state-error {
+  background: var(--color-surface-warm);
+  border-color: var(--color-warning-border);
+}
+
+/* ---------- 專案清單（卡片式，手機不使用寬表格） ---------- */
+
+.project-admin-list {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 與 gallery.css 的 .project-grid[hidden] 同一個坑（hidden-overridden-by-class，
+   本專案已累計五次）。`#project-list` 會被 JS 設 hidden，但這裡的 display: grid
+   會蓋掉 hidden 的預設 display: none，所以必須明確覆寫。
+   2026-08-29 從 affectionate-archimedes-437731 worktree 搶救進來。 */
+.project-admin-list[hidden] {
+  display: none;
+}
+
+.project-admin-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding: 18px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.project-admin-main {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.project-admin-visibility {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--color-surface-cool);
+  color: var(--color-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.project-admin-visibility.is-public {
+  background: var(--color-success-surface);
+  color: var(--color-success);
+}
+
+.project-admin-visibility.is-restricted {
+  background: var(--color-surface-warm);
+  color: var(--color-warning-strong);
+}
+
+/* 主卡片徽章（2026-08-28 主畫面改造 Part D）。用金色系跟可見性徽章的
+   綠／黃區分開，避免兩個徽章疊在一起時顏色太像分不清誰是誰。 */
+.project-admin-primary-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 6px 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--color-warning-surface);
+  color: var(--color-warning-text);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+/* 這個徽章的 display: inline-flex 會蓋掉 hidden 屬性的預設值——本專案已
+   踩過四次的同一個坑，見 public/gallery.css 的 [hidden] 覆寫慣例。 */
+.project-admin-primary-badge[hidden] {
+  display: none;
+}
+
+.project-admin-name {
+  margin: 0 0 4px;
+  font-size: 1.08rem;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.project-admin-slug,
+.project-admin-meta {
+  margin: 0;
+  color: var(--color-subtle);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.project-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---------- 分類與標籤 ---------- */
+
+.taxonomy-section {
+  margin-top: clamp(40px, 6vw, 64px);
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border);
+}
+
+.taxonomy-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 24px;
+}
+
+.taxonomy-block {
+  padding: 20px 22px 22px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.taxonomy-block h3 {
+  margin: 0 0 14px;
+  font-size: 1.02rem;
+  font-weight: 650;
+}
+
+.taxonomy-form {
+  display: grid;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.taxonomy-list {
+  display: grid;
+  gap: 6px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.taxonomy-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0 6px 4px;
+  font-size: 0.95rem;
+}
+
+.taxonomy-list .taxonomy-slug {
+  color: var(--color-subtle);
+  font-size: 0.85rem;
+}
+
+.taxonomy-empty {
+  color: var(--color-subtle);
+  font-size: 0.92rem;
+}
+
+/* ---------- 站台設定（2026-08-28 新增，見 Part C）----------
+ * 站名／版面風格／密碼說明三個項目共用 .taxonomy-block 卡片樣式，
+ * 這裡只補一個垂直排列的外層容器，避免逐項各寫一次 margin。 */
+.settings-items {
+  display: grid;
+  gap: 20px;
+}
+
+.settings-steps {
+  margin: 0 0 12px;
+  padding-left: 1.4em;
+  display: grid;
+  gap: 8px;
+  color: var(--color-secondary);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.settings-steps code {
+  font-size: 0.85em;
+  word-break: break-all;
+}
+
+/* ---------- 表單元件 ---------- */
+
+.field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.field > label,
+.field > legend {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 0 18px;
+}
+
+.required-mark {
+  margin-left: 2px;
+  color: var(--color-destructive);
+}
+
+input[type="text"],
+input[type="url"],
+textarea,
+select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+textarea {
+  resize: vertical;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* 錯誤欄位除了紅框，下方一定有文字說明，不單靠顏色表達。 */
+input[aria-invalid="true"],
+textarea[aria-invalid="true"],
+select[aria-invalid="true"] {
+  border-color: var(--color-destructive);
+  border-width: 2px;
+}
+
+.field-hint {
+  margin: 0;
+  color: var(--color-subtle);
+  font-size: 0.85rem;
+}
+
+/*
+ * 2026-08-28 主畫面改造 Part B5：說明文字字數即時提示，超過展示中心卡片
+ * 能顯示的字數（見 public/admin/admin.js 的 PROJECT_DESCRIPTION_SOFT_LIMIT）
+ * 時變色提醒。刻意只變色不擋輸入／不擋儲存——截斷是顯示層的事。
+ */
+.field-hint.is-over-limit {
+  color: var(--color-destructive);
+  font-weight: 600;
+}
+
+.field-error {
+  margin: 0;
+  color: var(--color-destructive);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.field-error[hidden] {
+  display: none;
+}
+
+.form-error-summary {
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-destructive);
+  border-radius: 12px;
+  background: var(--color-surface-warm);
+  color: var(--color-destructive-text);
+  font-size: 0.95rem;
+}
+
+.form-error-summary[hidden] {
+  display: none;
+}
+
+fieldset.field {
+  border: none;
+  margin-inline: 0;
+  padding: 0;
+}
+
+.visibility-field {
+  gap: 10px;
+}
+
+/*
+ * 目前狀態說明。
+ * 沒有這段的話，使用者會以為選了「私人」就已經擋住別人——
+ * 但實際上現在只控制展示中心是否列出，專案本身還沒裝上權限檢查。
+ */
+.visibility-status {
+  margin-bottom: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-warning-border);
+  border-radius: 12px;
+  background: var(--color-surface-warm);
+}
+
+.visibility-status p {
+  margin: 0 0 6px;
+  color: var(--color-secondary);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.visibility-status p:last-child {
+  margin-bottom: 0;
+}
+
+.visibility-status strong {
+  color: var(--color-foreground);
+}
+
+/* 「目前實際效果」的補充說明，與功能描述區隔開來。 */
+.visibility-note em {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-warning-strong);
+  font-style: normal;
+  font-weight: 600;
+}
+
+.visibility-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.visibility-option:hover {
+  border-color: var(--color-accent);
+}
+
+.visibility-option input {
+  margin-top: 3px;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  accent-color: var(--color-accent);
+}
+
+.visibility-option strong {
+  display: block;
+  font-size: 0.98rem;
+}
+
+.visibility-note {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-secondary);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.visibility-option:has(input:checked) {
+  border-color: var(--color-accent);
+  border-width: 2px;
+  background: var(--color-surface-cool);
+}
+
+/*
+ * 網站圖示選擇器（2026-08-28 新增，見 2026-08-28-工作計畫-主畫面改造.md
+ * Part A2）。與 `.visibility-option` 同一套「整個選項可點、選中變色」的
+ * 互動模式，但排成一列縮圖讓使用者用眼睛選，而不是只給檔名下拉選單——
+ * 光看「logo-03」這種代號完全不知道選到的是哪張圖。
+ */
+.logo-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.logo-option {
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.logo-option:hover {
+  border-color: var(--color-accent);
+}
+
+.logo-option input {
+  /* 縮圖本身已經清楚表達選項是什麼，圓點不需要跟縮圖並排佔版面，
+     但仍要留給鍵盤與螢幕報讀器使用，因此用位移而非 display:none 隱藏
+     ——後者會讓部分螢幕報讀器連同 focus 一起跳過這個表單控制項。 */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.logo-option img {
+  display: block;
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+}
+
+.logo-option:has(input:checked) {
+  border-color: var(--color-accent);
+  border-width: 2px;
+  background: var(--color-surface-cool);
+}
+
+.logo-option:has(input:focus-visible) {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.tag-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.tag-checkbox input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-accent);
+}
+
+.tag-checkbox:has(input:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-surface-cool);
+  font-weight: 600;
+}
+
+.password-section {
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface-warm);
+}
+
+.password-section[hidden],
+#password-note[hidden] {
+  display: none;
+}
+
+.password-title {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.password-status {
+  margin: 0 0 12px;
+  color: var(--color-secondary);
+  font-size: 0.9rem;
+}
+
+.password-status:empty {
+  display: none;
+}
+
+.password-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+#password-note {
+  margin-bottom: 18px;
+}
+
+.deployment-subtitle {
+  margin: 24px 0 10px;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.deployment-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.deployment-list li {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+
+.deployment-status {
+  justify-self: start;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--color-surface-cool);
+  color: var(--color-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.deployment-status.is-success {
+  background: var(--color-success-surface);
+  color: var(--color-success);
+}
+
+.deployment-status.is-failed {
+  background: var(--color-destructive-surface);
+  color: var(--color-destructive-strong);
+}
+
+.deployment-url {
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.deployment-meta {
+  color: var(--color-subtle);
+  font-size: 0.85rem;
+}
+
+.thumbnail-upload {
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-background);
+}
+
+.thumbnail-upload[hidden] {
+  display: none;
+}
+
+.thumbnail-upload .field {
+  margin-bottom: 12px;
+}
+
+input[type="file"] {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px dashed var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+input[type="file"]::file-selector-button {
+  min-height: 32px;
+  margin-right: 12px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface-cool);
+  color: var(--color-foreground);
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.upload-status {
+  margin: 10px 0 0;
+  color: var(--color-secondary);
+  font-size: 0.9rem;
+}
+
+.upload-status:empty {
+  display: none;
+}
+
+#thumbnail-upload-note {
+  margin-bottom: 18px;
+}
+
+#thumbnail-upload-note[hidden] {
+  display: none;
+}
+
+.advanced-fields {
+  margin-top: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-background);
+}
+
+.advanced-fields summary,
+.optional-field summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.advanced-note {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--color-surface-cool);
+}
+
+.optional-field {
+  margin-bottom: 4px;
+}
+
+.optional-field summary {
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--color-secondary);
+}
+
+.optional-field[open] summary {
+  margin-bottom: 8px;
+}
+
+.advanced-fields[open] summary {
+  margin-bottom: 12px;
+}
+
+/* ---------- 對話框 ---------- */
+
+.modal {
+  width: min(680px, calc(100% - 32px));
+  max-height: calc(100vh - 48px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+}
+
+/*
+ * 開啟時才切換成彈性容器：直接對 .modal 設定 display 會讓對話框
+ * 在關閉狀態也顯示出來。
+ *
+ * 需要這層佈局的原因：標題列與底部按鈕要固定，只有中間的內容捲動。
+ * 否則內容一長，使用者得先捲回最上面才找得到關閉按鈕。
+ */
+.modal[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-narrow {
+  width: min(460px, calc(100% - 32px));
+}
+
+.modal::backdrop {
+  background: rgb(29 29 31 / 45%);
+}
+
+.modal form {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 48px);
+}
+
+/*
+ * 標題列固定在對話框頂端。
+ * 內容較長時（例如部署紀錄），使用者不必捲回最上方才能關閉。
+ */
+.modal-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.modal-head h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 650;
+}
+
+.modal-body {
+  overflow-y: auto;
+  padding: 22px 24px 8px;
+}
+
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-secondary);
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  border-color: var(--color-border);
+  color: var(--color-foreground);
+}
+
+.icon-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.delete-scope {
+  margin: 14px 0 4px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--color-surface-cool);
+  font-size: 0.92rem;
+}
+
+.delete-scope p {
+  margin: 0 0 6px;
+  color: var(--color-secondary);
+}
+
+.delete-scope p:last-child {
+  margin-bottom: 0;
+}
+
+.button-danger {
+  border: 1px solid var(--color-destructive);
+  background: var(--color-destructive);
+  color: var(--color-on-primary);
+}
+
+.button-danger:hover {
+  background: var(--color-destructive-strong);
+  border-color: var(--color-destructive-strong);
+}
+
+.button-quiet {
+  /* 邊框寬度跟著配色風格走（方案三是 2px），與其他按鈕一致。 */
+  border: var(--width-button-border) solid transparent;
+  background: transparent;
+  color: var(--color-secondary);
+}
+
+.button-quiet:hover {
+  border-color: var(--color-border);
+  color: var(--color-foreground);
+}
+
+.button[disabled] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+@media (max-width: 720px) {
+  .project-admin-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .project-admin-actions .button {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .modal-foot {
+    flex-direction: column-reverse;
+  }
+
+  .modal-foot .button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .visibility-option,
+  .tag-checkbox,
+  .icon-button {
+    transition: none;
+  }
+}
+
+/*
+ * 後台按鈕的文字放大（2026-08-28 使用者回報「所有的按鈕上的文字都太小了」）。
+ *
+ * 全站共用的 .button 是 12px 等寬字（public/styles.css），配在 48px 高的按鈕上
+ * 明顯偏小——等寬字在同樣的 px 數下看起來又比一般字體更小。
+ *
+ * **只改後台**，不動 public/styles.css 的共用值：那個 class 首頁也在用
+ * （例如「清除篩選條件」與卡片的「開啟連結」，後者已有自己的 20px 覆寫），
+ * 改共用值會連帶改變首頁外觀，而使用者這次指的是後台。
+ *
+ * 18px（2026-08-28 二次調整，使用者實際看過 15px 後要求「再大一些」）：
+ * 佔 48px 按鈕高度約 37%。按鈕的最小高度不變，只放大文字與字重——
+ * 實測 30 個後台按鈕在 15px 時尺寸就沒有被撐爛，18px 仍有餘裕。
+ */
+.admin-page .button {
+  font-size: 18px;
+  font-weight: 650;
+}
+
+/*
+ * ── 後台分頁（2026-08-30 階段 E）──────────────────────────────────
+ *
+ * 面板刻意**不設 display**。這個專案有一個已經踩過五次的坑：hidden 屬性
+ * 只靠瀏覽器預設的 display: none，任何類別選擇器只要設了 display 就會勝過
+ * 它——結果是三個分頁同時出現，而且沒有錯誤訊息。所以這裡兩件事一起做：
+ * 類別本身不宣告 display，另外再明確寫一條 [hidden] 規則當保險。
+ */
+.admin-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 24px;
+  border-bottom: 1px solid var(--color-border);
+  /* 手機寬度下分頁列橫向捲動，不換行也不擠壓——三個中文標籤換行會很醜。 */
+  overflow-x: auto;
+}
+
+.admin-tab {
+  flex: 0 0 auto;
+  padding: 12px 20px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--color-secondary);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.admin-tab:hover {
+  color: var(--color-foreground);
+}
+
+.admin-tab.is-active {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.admin-tab:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: -2px;
+}
+
+.admin-panel[hidden] {
+  display: none;
+}
+
+/*
+ * 「跟 AI 溝通時，用這個名稱：…」加粗（2026-08-30 使用者要求）。
+ *
+ * 這行不是一般的補充說明，是**要照著念給 AI 聽的關鍵字**——使用者記不住
+ * 後台每個欄位叫什麼，這行就是他跟 AI 溝通的橋。跟其他 field-hint 同樣
+ * 灰、同樣細的話，它會被當成可以略過的小字。
+ *
+ * 只加粗、不放大也不變色：這一區已經有五處，全部放大會把版面吵翻。
+ */
+.field-hint-strong {
+  color: var(--color-foreground);
+  font-weight: 700;
+}

@@ -1,0 +1,1421 @@
+/*
+ * 展示中心專用樣式。
+ * 色彩、字型與圓角沿用 styles.css 定義的變數（來源：MASTER.md）。
+ * 這個檔案只被首頁載入，階段一教材頁不受影響。
+ */
+
+/*
+ * 上方留白於 2026-08-28 依使用者要求減半（原為 clamp(56px, 9vw, 112px)）——
+ * 標頭與主標題之間的距離太寬，第一屏浪費太多空間。下方留白不變。
+ */
+.gallery-intro {
+  padding: clamp(28px, 4.5vw, 56px) 0 clamp(28px, 4vw, 48px);
+  max-width: 48rem;
+}
+
+.gallery-intro h1 {
+  margin: 0 0 18px;
+  font-size: clamp(2rem, 1.3rem + 3vw, 3.2rem);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--color-foreground);
+  /* 避免在中文詞彙中間斷行 */
+  text-wrap: balance;
+}
+
+/*
+ * max-width 於 2026-08-28 從 34rem 放寬到 42rem：原本的寬度會讓這段說明在
+ * 桌面版硬是斷成兩行（使用者指出「不要分兩行」）。42rem 足夠讓目前的文案
+ * 在一般桌面寬度下排成一行，窄螢幕仍會自然換行——那是正確的行為，
+ * 不是用 white-space: nowrap 強制不換行（那會在手機上溢出畫面）。
+ */
+.gallery-lede {
+  margin: 0;
+  max-width: 42rem;
+  font-size: 1.08rem;
+  line-height: 1.7;
+  color: var(--color-secondary);
+}
+
+.gallery-section {
+  padding-bottom: clamp(56px, 8vw, 96px);
+}
+
+.gallery-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.gallery-heading h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.gallery-count {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--color-subtle);
+}
+
+/* ---------- 篩選 ---------- */
+
+.filter-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 0 8px;
+}
+
+.filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.filter-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-secondary);
+  min-width: 4.5rem;
+}
+
+.filter-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-secondary);
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+}
+
+.filter-chip:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.filter-chip[aria-pressed="true"] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-primary);
+  font-weight: 600;
+}
+
+/* 選中狀態不只靠顏色：另外加一個勾選符號，色盲使用者也能分辨。 */
+.filter-chip[aria-pressed="true"]::before {
+  content: "\2713";
+  font-size: 0.9em;
+}
+
+.filter-chip-count {
+  color: inherit;
+  opacity: 0.75;
+  font-size: 0.85em;
+}
+
+/* ---------- 狀態區塊 ---------- */
+
+.gallery-state {
+  padding: clamp(40px, 6vw, 64px) 24px;
+  margin-top: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  text-align: center;
+}
+
+.gallery-state h3 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+  font-weight: 650;
+}
+
+.gallery-state p {
+  margin: 0 auto;
+  max-width: 34rem;
+  color: var(--color-secondary);
+}
+
+.gallery-state .button {
+  margin-top: 20px;
+}
+
+.gallery-state-error {
+  background: var(--color-surface-warm);
+  border-color: var(--color-warning-border);
+}
+
+/* ---------- Portfolio Grid ---------- */
+
+/*
+ * 2026-08-28 二次調整：原本這裡有一個 .gallery-wide 只給展示中心用的加寬容器，
+ * 因為當時不能動 styles.css 的共用 .shell（會把後台與教材頁一起拉寬）。
+ * 使用者後來要求「所有頁面寬度都跟主頁面一樣」，於是共用值直接改成 1320px，
+ * 這個迴避用的 class 就沒有存在理由了，已移除——留著兩個做同一件事的 class
+ * 只會讓下一個人猜哪個才是真的。寬度的唯一來源現在是 styles.css 的 .shell。
+ */
+
+
+.project-grid {
+  display: grid;
+  /* 手機／窄螢幕預設單欄，卡片滿版寬度往下捲動（2026-08-28 Part C 使用者
+     裁定）。桌面的 4 欄規則見下方 @media (min-width: 920px)，沿用既有的
+     hero 斷點，不另外新增一個斷點。 */
+  grid-template-columns: 1fr;
+  gap: clamp(16px, 2.5vw, 28px);
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 同一個坑的第五次（2026-08-27 發現，趁 latent 階段先補；2026-08-29 從
+   affectionate-archimedes-437731 worktree 搶救進來，原本一直沒提交）。
+   app.js 的 setMode() 會設 `grid.hidden = mode !== "list"`，但 `.project-grid`
+   自己寫了 display: grid，hidden 屬性帶來的預設 display: none 蓋不過類別選擇器。
+   目前之所以看不出問題，只是因為 render() 每次都先清空 grid.textContent，
+   空的 <ul> 沒有可見高度而已——一旦有殘留子節點就會直接漏出來。 */
+.project-grid[hidden] {
+  display: none;
+}
+
+/* ---------- 版面風格切換（[data-layout]，2026-08-27 工作計畫階段 7） ----------
+ *
+ * 三種版面共用同一份 .project-card DOM，app.js 只把 gallery_layout 設到
+ * #project-grid 的 data-layout 屬性上，不依版面產生不同的 HTML——這樣
+ * 版面邏輯只集中在這裡一份 CSS，不必在 JS 裡分三套渲染邏輯各自維護。
+ *
+ * grid（預設）：不需要額外規則。上面 .project-grid 的基礎規則本身就是
+ * 等大排列，這裡刻意留白，用這段註解說明「沒有規則」是刻意的，
+ * 避免日後誤以為漏寫。
+ */
+
+/*
+ * hero：第一件作品放大成主視覺（Bento 版面）。
+ *
+ * 這段規則在 2026-08-17 加入 Bento 版面時是無條件套用的；2026-08-27 加入
+ * 版面選擇功能後改成只在 [data-layout="hero"] 才套用——grid 版面必須
+ * 維持等大排列，不能讓兩者共用同一份無條件規則。
+ *
+ * 只在夠寬的畫面套用。窄螢幕維持單欄，放大反而讓其他作品被推得太下面。
+ */
+@media (min-width: 920px) {
+  /*
+   * 2026-08-28 主畫面改造 Part C：grid／hero 兩種版面在桌面寬度下改成
+   * 明確的 4 欄（原本 grid 版面靠 auto-fill/minmax 自然長出 3 欄，
+   * hero 版面寫死 3 欄）。list 版面維持固定單欄，不受這裡影響——
+   * `.project-grid[data-layout="list"]` 的選擇器優先度比這裡的
+   * `.project-grid[data-layout="grid"]` 更精確（同樣是 1 class + 1
+   * 屬性選擇器，但直接命中，這裡完全沒有寫 list，兩者互不相干）。
+   */
+  .project-grid[data-layout="grid"],
+  .project-grid[data-layout="hero"] {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  /*
+   * hero 主卡片＝兩張小卡的寬度（使用者 2026-08-28 補充裁決）：
+   * 4 欄下 span 2，原本是 3 欄下 span 2。
+   *
+   * 2026-08-28 同時移除「主卡片放大字級／改縮圖比例」的舊覆寫（縮圖
+   * aspect-ratio 2:1、加大 padding、放大標題與說明字級）——這些規則假設
+   * 主卡片可以有跟其他卡片不同的高度，但 Part B 把所有卡片改成固定高度
+   * ＋ 固定 grid-template-rows（見下方 .project-card > article），放大
+   * 字級或改變縮圖比例會讓內容溢出這個固定高度、破壞三段式版面。主卡片
+   * 曾經只靠「更寬」（span 2）製造差異；2026-08-30 起 hero 改為佔滿整列、
+   * grid 完全不放大，兩者都不靠「更高／字更大」。
+   * 這是本次改造主動判斷後的取捨，非使用者逐字要求——已在回報中明說。
+   */
+  /*
+   * 2026-08-30 使用者回報：「大圖主打」與「整齊小卡」的主卡長得一模一樣，
+   * 兩者都變成大圖主打，這樣是錯的。
+   *
+   * 原因是兩邊都 span 2——指定主卡之後（主卡會排到第一位）兩種版面的第一張
+   * 卡片寬度完全相同，選哪一種都沒差別。
+   *
+   * 改成：
+   *   hero「大圖主打」→ 主卡**佔滿整列**（1 / -1）。名字就是這個意思：
+   *                     一張大圖領頭，其餘在下面排開。
+   *   grid「整齊小卡」→ 每張卡都一樣大，主卡靠風格強調（見下方留白說明）。
+   *
+   * 縮圖用的是 object-fit: contain（2026-08-17 裁定），所以佔滿整列時
+   * 圖片會完整置中留白，不會被裁掉或拉變形。
+   */
+  .project-grid[data-layout="hero"] > .project-card:first-child {
+    grid-column: 1 / -1;
+  }
+
+  /*
+   * grid 版面**刻意沒有主卡放大規則**（2026-08-30 使用者裁定）。
+   *
+   * 「整齊小卡」的意思就是每一張都一樣大，主卡也不例外——它靠的是
+   * 各風格自己的視覺強調（左側色條、標題牌、深色卡、主色描邊），
+   * 不靠變大。8/29 曾經讓它佔 2 欄，實測後使用者判定那樣與「大圖主打」
+   * 難以分辨，且破壞了整齊感。
+   *
+   * 這段註解是刻意留白的說明，避免之後有人以為是漏寫。
+   */
+}
+
+/*
+ * rows：分類橫排（2026-08-28 主畫面改造 Part E1 新增第四種版面）。
+ *
+ * 與上面 hero／grid／list 共用同一份 .project-card DOM、只靠 [data-layout]
+ * 切換樣式的既有前提（2026-08-27 設計決定）在這裡刻意打破：分類數量是
+ * 動態的，純 CSS 要把一份平鋪清單分組成多個橫向捲動區需要 display:contents
+ * 之類的技巧，分類增減時很容易出錯；改成 public/app.js 的
+ * renderCategoryRows() 依分類建立獨立的 DOM 容器（每個分類一個
+ * `<li class="gallery-row">`，內含標題列與一個 `.gallery-row-track` 橫排
+ * 卡片），這裡的 CSS 只負責這個新結構本身的樣式。兩條渲染路徑比一份
+ * 過度聰明的 CSS 好維護——理由與 app.js 對應位置的註解一致，避免被誤讀
+ * 成對「不要在 JS 裡分三套渲染邏輯」這條既有原則的退化。
+ *
+ * 頂層 #project-grid 在這個版面底下改成縱向排列一組 .gallery-row，
+ * 不再是卡片本身的 grid 容器——卡片改在 .gallery-row-track 裡橫向排列。
+ * list-style / padding / margin 沿用最上方 .project-grid 的基礎規則
+ * （這裡沒有覆寫，因為它們在任何版面下都一樣要歸零）。
+ */
+.project-grid[data-layout="rows"] {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(28px, 4vw, 44px);
+}
+
+.gallery-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 箭頭的定位基準，只包住捲動區（不含標題列）——理由見 app.js 的 createCategoryRow。 */
+.gallery-row-viewport {
+  position: relative;
+}
+
+.gallery-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+}
+
+.gallery-row-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.gallery-row-count {
+  margin: 0;
+  color: var(--color-subtle);
+  font-size: 0.88rem;
+}
+
+/*
+ * 2026-08-28 使用者修正：箭頭要疊在最左／最右的卡片上，不是放在分類標題的
+ * 右上角。所以 controls 改為絕對定位、貼在捲動區的左右邊緣、垂直置中於卡片。
+ *
+ * `pointer-events: none` 加在容器、`auto` 加回按鈕本身：容器橫跨整個捲動區，
+ * 若它自己接收滑鼠事件，中間那一大片空白會擋住卡片的點擊與捲動。
+ */
+.gallery-row-controls {
+  position: absolute;
+  /*
+   * 不用 inset: 0 讓箭頭在整個捲動區裡置中——那樣會偏低 11px（實測）。
+   * 原因：捲動區的下緣除了 24px 內距，還被水平捲軸佔掉約 15px，
+   * 所以卡片在容器裡並非垂直居中（實測距上緣 18px、距下緣 39px）。
+   *
+   * 改成直接把 controls 的範圍框在「卡片實際佔的那條垂直帶」上：
+   * top 對齊捲動區的上內距，height 等於卡片高度。這樣箭頭必然對齊卡片中心，
+   * 而且不必猜捲軸寬度（那個值各平台／各瀏覽器不同）。
+   *
+   * 這兩個數字必須與 `.gallery-row-track` 的 padding-top 與
+   * `.project-card > article` 的 height 保持一致——兩者在本檔案裡都是明確的
+   * 字面值（26px／378px），改動任一邊時要一起改。
+   * （2026-08-28 已因此連動改過一次：捲動區內距為了容納光暈從 18px 加到 26px。）
+   */
+  top: 26px;
+  right: 0;
+  left: 0;
+  height: 378px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: 4px;
+  pointer-events: none;
+}
+
+/*
+ * 整排卡片放得下、不需要捲動時，整個箭頭層隱藏。
+ * 用 visibility 而不是 display: none，是為了讓版面高度完全不變（箭頭是絕對
+ * 定位、本來就不佔空間，但 visibility 也順帶關掉 hit-test，比較保險）；
+ * 更不用 `hidden` 屬性——本專案的 `hidden` 會被 class 的 display 蓋掉。
+ */
+.gallery-row-controls.is-static {
+  visibility: hidden;
+}
+
+.gallery-row-controls .gallery-row-arrow {
+  pointer-events: auto;
+}
+
+.gallery-row-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 疊在卡片上方，所以比原本放在標題列時放大並加陰影，才不會融進卡片背景。 */
+  width: 44px;
+  height: 44px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font-family: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 200ms ease, color 200ms ease, opacity 200ms ease;
+}
+
+.gallery-row-arrow:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.gallery-row-arrow:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/*
+ * 停用用 disabled 屬性而非 hidden／隱藏：本專案的 hidden 屬性會被 class 的
+ * display 覆蓋，已踩過四次（見 AGENTS.md 第 8 節），disabled 是原生表單
+ * 控制項屬性，視覺與互動語意由瀏覽器保證、不受那個坑影響。停用而不是讓
+ * 按鈕消失，是為了不讓標題列寬度跟著箭頭數量變動而跳動（E3 明確要求）。
+ */
+.gallery-row-arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.gallery-row-track {
+  display: flex;
+  gap: clamp(16px, 2.5vw, 28px);
+  margin: 0;
+  list-style: none;
+  overflow-x: auto;
+  /*
+   * 明確關掉垂直捲軸（2026-08-28 使用者回報）。
+   *
+   * 只設 overflow-x 時，另一軸依規格會被計算成 auto，於是出現一個上下捲軸
+   * ——但卡片高度是固定的、容器高度就等於卡片高度，那個捲軸完全沒有用途，
+   * 只是佔掉右側空間並讓畫面看起來像壞了。
+   *
+   * 設 hidden 不會讓光暈的裁切變嚴重：這個軸原本算出來是 auto，而 auto
+   * 同樣會裁切（只是多一條捲軸），所以改成 hidden 不影響裁不裁、只影響
+   * 有沒有那條沒用的捲軸。
+   *
+   * 光暈本身確實會被裁——四個方向都會，因為橫排必須有 overflow 才能捲動。
+   * 靠的是把內距開到足以容納光暈的暈開範圍（見下方 padding 那段）。
+   * 2026-08-28 更正：原本這裡寫「光暈是 inset: -6px、落在內距範圍內」，
+   * 那個推論**漏算了 filter: blur(10px) 的外擴**，實際範圍遠大於 6px。
+   */
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  /*
+   * 四邊內距都要留給主卡片的七彩光暈（見下方 is-primary 規則）。
+   * 橫排必須有 overflow-x 才能捲動，而 overflow 的裁切發生在內距框
+   * （padding box）邊緣——只能用內距把光暈的暈開範圍讓進裁切線以內，
+   * 無法完全避免（這是刻意接受的取捨）。
+   *
+   * 2026-08-28 實測修正：原值 18px／16px／24px **不夠**，真實瀏覽器截圖
+   * 可以看到光暈左側被切成一道平直的邊。原本的估算只看 ::before 的
+   * inset: -6px，漏算了 filter: blur(10px)——CSS 的 blur(<length>) 是把
+   * 高斯標準差設成那個長度，也就是 σ = 10px，可見範圍約 2σ～3σ，
+   * 所以實際外擴是 6 + 20～30 ≈ 26～36px，遠大於當時的 16px 側邊內距。
+   *
+   * 取 28px 側邊內距（≈ 6 + 2σ），不取完整的 3σ（36px）：2σ 之外的高斯
+   * 尾巴透明度已低於 5%，肉眼看不出被切，再加 8px 只是白白吃掉卡片寬度。
+   * 上下取 26px／32px，下方多留是因為水平捲軸還要佔掉約 15px。
+   *
+   * 【耦合】padding-top 的值同時被 .gallery-row-controls 的 top 引用
+   * （箭頭要對齊卡片而不是整個捲動區）。改這裡必須同時改那裡，否則箭頭
+   * 的垂直對齊會歪掉。
+   */
+  padding: 26px 28px 32px;
+}
+
+.gallery-row-track:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/*
+ * 橫排裡的卡片需要固定寬度（flex-basis）：.project-card 平常的寬度是由
+ * grid／hero 版面的 grid column 軌道決定的，這裡改成 flex 排列，沒有寬度
+ * 規則的話卡片會被內容撐開或被 flex 壓成很窄的一條。寬度取跟桌面 4 欄
+ * 版面相近的視覺尺寸，clamp 讓窄螢幕也有合理的最小寬度。
+ */
+.project-grid[data-layout="rows"] .project-card {
+  flex: 0 0 clamp(230px, 26vw, 300px);
+  scroll-snap-align: start;
+}
+
+/*
+ * list：純文字清單，不顯示縮圖。多數專案沒有縮圖，這個版面讓那些卡片
+ * 看起來是刻意設計而非壞掉（2026-08-26/27 裁決，需求 B 第三種版面的理由）。
+ * 固定單欄，不受螢幕寬度影響——這是「清單」而不是「更窄的格線」。
+ */
+.project-grid[data-layout="list"] {
+  grid-template-columns: 1fr;
+  gap: var(--space-sm);
+}
+
+.project-grid[data-layout="list"] .project-thumb {
+  display: none;
+}
+
+/*
+ * 2026-08-28 主畫面改造 Part B：卡片改成固定高度、三段式 grid-template-rows
+ * （縮圖／說明區／按鈕區）。目標值是使用者在既有卡片（1120px 容器、3 欄、
+ * 534px 高的最高卡片）上實測後裁決的比例：
+ *   534 × 2/3 ≈ 356px（卡片整體）
+ *   356 × 1/2 = 178px（縮圖，第一段）
+ *   剩下 178px 的 2/3 ≈ 119px（說明區，第二段，含標題）
+ *   最後剩下 59px（按鈕區，第三段）
+ * 178 + 119 + 59 = 356，三段剛好切滿整張卡片。
+ *
+ * 這個固定高度只給 grid／hero 版面用；list 版面維持原本「內容多高就多高」
+ * 的行為，見下方 `.project-grid[data-layout="list"] .project-card > article`
+ * 的覆寫。
+ */
+/*
+ * 2026-08-28 二次調整：說明區 119px → 141px，卡片 356px → 378px。
+ *
+ * 為什麼偏離使用者原本指定的「卡片 2/3、說明佔剩下的 2/3」：那兩個數字與
+ * 「說明顯示 3 行」在數學上衝突。實測——說明區 119px 扣掉內距 20px、
+ * 第一行 28.4px、名稱 21.6px 之後只剩 49px，而 3 行需要 63px（15px × 1.4 × 3）；
+ * 整段內容需要 141px，比 119px 差 22px。
+ *
+ * 湊那 22px 的唯一方法是把按鈕列（餘裕只有 11px）、內距（只有 20px）與各處
+ * margin 全部壓到極限——那會讓版面極度脆弱，任何字型或內容變化就破版。
+ * 使用者為了拿到第 3 行已經同意把說明字級縮到 15px，可見那一行的價值高於
+ * 「卡片剛好是 2/3」這個數字本身，因此改為讓卡片高 22px（356 → 378，約 +6%），
+ * 縮圖維持 178px（佔 47% 而非嚴格的 50%，肉眼看不出差別）。
+ *
+ * 這是主動判斷後的取捨，已在回報中明說並提供還原選項。
+ */
+.project-card > article {
+  display: grid;
+  grid-template-rows: 178px 141px 59px;
+  height: 378px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  transition: border-color 220ms ease, box-shadow 220ms ease;
+}
+
+/*
+ * list 版面維持原本「內容多高就多高」的行為，不套用上面的固定高度／
+ * 三段式 grid-template-rows／下方的文字截斷——它本來就是為了「還沒有
+ * 縮圖，或想完整看到說明」而存在的版面（見本檔案較上方 list 區塊的既有
+ * 註解），固定高度或截斷文字違背它的用途。
+ */
+.project-grid[data-layout="list"] .project-card > article {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+}
+
+.project-card > article:hover {
+  border-color: var(--color-border-hover);
+  box-shadow: 0 6px 20px rgb(29 29 31 / 7%);
+}
+
+/*
+ * 主卡片的旋轉七彩光暈已於 2026-08-30 **完全移除**（使用者：「真的很礙眼」，
+ * 不分風格、不分版面）。
+ *
+ * 原本它是 2026-08-28 加的：::before 鋪一層 conic-gradient、用 transform
+ * 旋轉做出流動效果。留這段說明是為了讓之後的人知道它去哪了，不要再依樣
+ * 加回來：一個 6 秒一圈、永不停止的動態元素放在清單頁的第一張卡上，
+ * 干擾程度遠高於它帶來的辨識度。
+ *
+ * 主卡片現在改用**各風格自己的靜態強調**（見本檔下方各 [data-theme] 區塊，
+ * 以及方案零的主色描邊）。
+ */
+
+/*
+ * ── 各配色風格的主卡視覺語言（2026-08-29 階段 D）─────────────────────
+ *
+ * 依 `AI-Project-Hub-三種網站風格與主卡搭配.md` 第六節：三種主卡不只是換顏色，
+ * 視覺語言本身要不同。
+ *
+ * **一個必須說明的詮釋**：文件的示意圖畫的是一塊橫幅（AI PROJECT HUB／
+ * 瀏覽全部專案 →），但這個專案的「主卡」是**後台指定的那張專案卡**
+ * （使用者 2026-08-29：「大卡就是主卡」）。所以這裡只借用文件的視覺語彙
+ * ——左側粗色條、線框大字、角標——不套它的橫幅內容。
+ *
+ * **所有裝飾一律用絕對定位的偽元素**，不用 border 也不改 padding：
+ * `.project-card > article` 是固定高度 378px ＋ 固定 grid-template-rows，
+ * 2026-08-29 使用者再次確認「卡片高度不要變動」。絕對定位的裝飾完全不參與
+ * 流排，也就不可能推擠到任何東西；article 本身的 overflow: hidden 會把
+ * 超出的部分裁掉，不會漏到卡片外面。
+ *
+ * 方案零不在這裡——它的主卡語言就是既有的「更寬＋七彩光暈」，不動。
+ */
+
+/*
+ * 三套新風格**完全不要那個旋轉光暈**（2026-08-30 修正）。
+ *
+ * 原本的做法是把七彩換成該套主色的單色光暈，但那只是換顏色——使用者回報
+ * 「主卡後面還是會一直旋轉的色塊，都沒有變成每個風格」，說得對。
+ *
+ * 更關鍵的是風格文件對方案三**明寫**「不要整張卡片都發光」，而另外兩套
+ * 的主卡設計（左側色條＋SHOW／標題牌＋幾何色塊）也完全沒有提到光暈。
+ * 旋轉光暈是方案零的語彙，它出現在其他三套裡本身就是我沒讀清楚文件。
+ *
+ * 每一套已經有自己的識別方式，不需要再靠光暈標示「這張是主卡」：
+ *   方案一 左側粗色條 ＋ SHOW 線框字
+ *   方案二 PROJECT SHOW 標題牌 ＋ 幾何色塊
+ *   方案三 深色主卡 ＋ 青藍角標／底線
+ *
+ * 用 content: none 而不是 display: none——前者連盒子都不產生，
+ * 那個 6 秒一圈的 animation 也就不會繼續在背景跑。
+ */
+
+/*
+ * 方案零的主卡強調（2026-08-30 新增）。
+ *
+ * 旋轉光暈移除後，方案零的主卡就沒有任何標記了——而 grid 版面同一天也改成
+ * 每張卡等大，等於完全看不出哪張是主卡。這裡補一圈主色描邊，是四套裡最
+ * 克制的一種強調，符合方案零本來就柔和的調性。
+ *
+ * 用 outline 而不是 border 或 box-shadow：border 會吃掉內容寬度（卡片是
+ * 固定高度＋固定 grid-template-rows，內容溢出就會破版），box-shadow 則會
+ * 與 .project-card > article:hover 既有的陰影打架。outline 不參與版面，
+ * 也不佔用 box-shadow 這個屬性。
+ *
+ * html:not([data-theme]) 就是方案零——CSS 那邊刻意沒有 [data-theme="zero"]
+ * 區塊，套用時是移除屬性而不是寫上去。
+ */
+html:not([data-theme]) .project-grid:not([data-layout="list"]) .project-card.is-primary > article {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* 方案一：左側粗色條 ＋ 大型 SHOW 線框字 */
+[data-theme="one"] .project-grid:not([data-layout="list"]) .project-card.is-primary > article {
+  position: relative;
+}
+
+[data-theme="one"] .project-grid:not([data-layout="list"]) .project-card.is-primary > article::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 2;
+  width: 8px;
+  background: var(--color-accent);
+}
+
+/*
+ * SHOW 線框字。文件給的是 90px／stroke 2px／opacity 0.12～0.18，這裡取 0.15。
+ *
+ * `-webkit-text-stroke` 沒有標準對應屬性，但三大瀏覽器都支援；萬一不支援，
+ * `color: transparent` 會讓它整個看不見——退化成「沒有裝飾」，不會變成一塊
+ * 難看的實心色塊。這是刻意選的失敗方向。
+ *
+ * `user-select: none` 與 `pointer-events: none`：它是裝飾，不該被選取，
+ * 也不該擋住底下的連結。
+ */
+[data-theme="one"] .project-grid:not([data-layout="list"]) .project-card.is-primary > article::after {
+  content: "SHOW";
+  position: absolute;
+  top: 2px;
+  right: 16px;
+  z-index: 2;
+  color: transparent;
+  -webkit-text-stroke: 2px var(--color-accent);
+  font-size: 90px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  opacity: 0.15;
+  pointer-events: none;
+  user-select: none;
+}
+
+/*
+ * 方案二：浮貼標題牌 ＋ 右下角幾何色塊
+ *
+ * 標題牌**絕對定位、不佔流排空間**——這是 2026-08-29 衝突 2 的裁決 (a)。
+ * 文件把它畫成「稍微突出主卡上方」的一塊標籤，照字面做會擠壓三段式版面、
+ * 撐高卡片，而卡片高度不能變（裁定 9）。浮貼在卡片內的左上角同時滿足
+ * 「一眼看到這是主卡」與「高度不變」。
+ *
+ * 幾何色塊**放在縮圖區的右下角，不是卡片的右下角**：卡片右下角正好是
+ * 「開啟連結」按鈕，蓋上去會擋住主要動作。文件要的是「右下角有裝飾」，
+ * 不是「蓋住按鈕」。
+ */
+[data-theme="two"] .project-grid:not([data-layout="list"]) .project-card.is-primary > article {
+  position: relative;
+}
+
+[data-theme="two"] .project-grid:not([data-layout="list"]) .project-card.is-primary > article::before {
+  content: "PROJECT SHOW";
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  padding: 8px 16px;
+  border-radius: 6px;
+  background: var(--color-accent);
+  color: var(--color-on-primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  user-select: none;
+}
+
+/*
+ * 三個矩形色塊，刻意用單一偽元素的多重背景做——三個獨立元素需要改動 HTML
+ * 模板，而那個模板是四種版面共用的（2026-08-27 設計決定）。
+ * 文件明確要求「不要使用漂浮圓球」，所以一律是矩形、不加圓角。
+ */
+[data-theme="two"] .project-grid:not([data-layout="list"]) .project-card.is-primary > article::after {
+  content: "";
+  position: absolute;
+  top: 128px;
+  right: 14px;
+  z-index: 2;
+  width: 92px;
+  height: 34px;
+  background:
+    linear-gradient(var(--color-accent) 0 0) 0 0 / 24px 10px no-repeat,
+    linear-gradient(var(--color-tag-surface) 0 0) 34px 12px / 24px 10px no-repeat,
+    linear-gradient(var(--color-accent) 0 0) 68px 24px / 24px 10px no-repeat;
+  pointer-events: none;
+}
+
+/*
+ * 方案三：深色主卡 ＋ 青藍角標／底線
+ *
+ * 深色是靠**在主卡上重新定義 token**達成的，不是逐一覆寫每個子元素的顏色。
+ * 自訂屬性會往下繼承，所以卡片裡每個用 var() 的地方都會自動跟著變深色。
+ * 這正是階段 A 把 49 個寫死色碼收斂成 token 的回收點——那時如果沒收，
+ * 這裡就得逐條追著改，而且一定會漏。
+ *
+ * 只換顏色，完全不動盒模型：高度、grid-template-rows、padding 都沒碰。
+ */
+[data-theme="three"] .project-grid:not([data-layout="list"]) .project-card.is-primary > article {
+  position: relative;
+
+  --color-surface: var(--color-primary-card-surface);
+  --color-surface-cool: var(--color-primary-card-surface-cool);
+  --color-foreground: var(--color-primary-card-foreground);
+  --color-primary: var(--color-primary-card-foreground);
+  --color-secondary: var(--color-primary-card-secondary);
+  --color-subtle: var(--color-primary-card-secondary);
+  --color-subtle-cool: var(--color-primary-card-secondary);
+  --color-border: var(--color-primary-card-border);
+  --color-tag-surface: var(--color-primary-card-tag-surface);
+  --color-tag-text: var(--color-primary-card-tag-text);
+}
+
+/* 右上角青藍角標。article 的 overflow: hidden 會把它裁進圓角裡。 */
+[data-theme="three"] .project-grid:not([data-layout="list"]) .project-card.is-primary > article::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  border-width: 0 44px 44px 0;
+  border-style: solid;
+  border-color: transparent var(--color-accent) transparent transparent;
+  pointer-events: none;
+}
+
+/*
+ * 底部一小段青藍線。文件規定只占主卡寬度的 15%～25%，這裡取 20%。
+ * 文件同時交代「不要整張卡片都發光」——所以裝飾只有角標與這條線兩處。
+ */
+[data-theme="three"] .project-grid:not([data-layout="list"]) .project-card.is-primary > article::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 20%;
+  height: 4px;
+  background: var(--color-accent);
+  pointer-events: none;
+}
+
+/*
+ * 2026-08-28 起改填滿 article 的第一個 grid row（固定 178px，見上方
+ * .project-card > article），不再用 aspect-ratio——固定高度卡片下，
+ * 縮圖高度已經由 grid row 決定，長寬比反而會讓縮圖高度隨卡片寬度變動，
+ * 跟另外兩段（說明／按鈕）的固定高度衝突。list 版面的 article 是
+ * flex 排列（見上方覆寫），這裡的 height:100% 在該情境下改為填滿
+ * `.project-thumb`（display:none 時整段規則不生效，不需要另外處理）。
+ */
+.project-thumb {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--color-surface-cool);
+}
+
+.project-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+
+  /* contain 而非 cover（2026-08-17 改）。
+     縮圖由使用者自己截圖，比例完全不可控——實測第一張就是 875×380（比例 2.3）。
+     cover 會把它裁成 16:10，左右各切掉約 15%，可能剛好切掉網站最有代表性的部分。
+     contain 讓任何比例都完整顯示，上下或左右留白，底色與卡片一致（見下方 background）。
+
+     這個選擇同時免掉了影像處理：本來計畫在部署時把截圖裁成 16:10、縮到 1280×800、
+     轉 WebP，但 Node 沒有內建影像處理，要做就得加 sharp（原生二進位、約 30 MB），
+     而空白殼的使用者也得裝。用 contain 換掉那個依賴，代價只是卡片視覺不那麼齊。 */
+  object-fit: contain;
+  background: var(--color-surface-cool);
+}
+
+.project-thumb img[hidden] {
+  display: none;
+}
+
+.project-thumb-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  text-align: center;
+  /* 必須是不透明背景：這樣即使底下的 img 仍在，
+     瀏覽器的破圖圖示也不會透出來。不依賴 JavaScript 是否成功隱藏 img。 */
+  background: var(--color-surface-cool);
+  color: var(--color-subtle-cool);
+}
+
+.project-thumb-fallback[hidden] {
+  display: none;
+}
+
+.project-thumb-note {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: inherit;
+}
+
+.project-thumb-fallback svg {
+  width: 48px;
+  height: 48px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/*
+ * 2026-08-28 主畫面改造 Part B：這裡現在是 article 的第二個 grid row
+ * （grid／hero 版面固定 119px，見上方），不再靠 flex: 1 撐滿剩餘空間。
+ * overflow: hidden 是最後一道防線——就算標題／說明／徽章加起來超出
+ * 119px，也只會被裁掉，不會撐破卡片。內部維持 flex column，讓標題
+ * （flex-shrink: 0，2 行封頂）與說明（flex: 1，行數依剩餘空間截斷）
+ * 分配空間，見下方 .project-name／.project-description。
+ * list 版面另有覆寫（見下方），還原成可以長多高就多高。
+ */
+.project-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /*
+   * 上下內距 8px（原 10px）：2026-08-28 實測發現徽章較多的卡片
+   * （例如同時有分類與「需下載安裝」型態標記）第一行會高一些，
+   * 在 141px 的說明區裡剛好溢出 2px、把第三行底部切掉一點。
+   * 縮 2px 內距就吸收掉了，比再把整張卡片加高 4px 影響更小。
+   */
+  padding: 8px 22px;
+  overflow: hidden;
+}
+
+.project-grid[data-layout="list"] .project-body {
+  flex: 1;
+  gap: 8px;
+  padding: 20px 22px 22px;
+  overflow: visible;
+}
+
+.project-category {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.project-category[hidden] {
+  display: none;
+}
+
+/*
+ * 2026-08-28：精簡版面的名稱縮小一號（1.15rem → 1rem，見下方覆寫）。
+ * 使用者裁定「APP名稱(縮小一號)」——名稱讓出的垂直空間給說明文字，
+ * 因為 119px 的說明區在日期回到第一行後仍然吃緊。
+ * 清單版面維持 1.15rem，那裡沒有高度壓力。
+ */
+.project-name {
+  margin: 0;
+  flex-shrink: 0;
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  /*
+   * 標題限 2 行、超過用刪節號（2026-08-28 Part B 規格明訂），剩餘空間
+   * 才給說明文字。-webkit-line-clamp 需要搭配 display: -webkit-box，
+   * 全站其他標題沒有這個限制，只在展示中心卡片標題套用。
+   */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.project-description {
+  margin: 0;
+  flex: 1;
+  min-height: 0;
+  color: var(--color-secondary);
+  font-size: 0.98rem;
+  line-height: 1.6;
+  /* 精簡版面的字級與行數在下方的 [data-layout] 覆寫裡調整（2026-08-28）。 */
+  /*
+   * 2026-08-28 Part B5：超過的說明文字截斷不顯示，不阻止使用者儲存完整
+   * 內容——截斷純粹是顯示層的事（見後台說明欄位旁的字數提示與計數器，
+   * public/admin/index.html／admin.js）。2 行是在說明區 119px 扣掉標題
+   * 與徽章列後，實測仍能穩定顯示的行數（見工作紀錄回報的實測數字）；
+   * `.project-body` 的 overflow: hidden 是最後一道防線，即使某張卡片
+   * 徽章特別多、標題吃滿 2 行，這裡也不會撐破卡片，只是說明可能被裁到
+   * 看不到，不會溢出版面。
+   */
+  /*
+   * 2026-08-28 更正：這裡原本用 -webkit-box ＋ -webkit-line-clamp 做行數截斷，
+   * 但實測發現**完全沒有生效**——說明當時是 .project-body 的 flex 子元素，
+   * 而 flex 子元素的 display 會被瀏覽器區塊化（computed value 實測為 flow-root），
+   * 而 -webkit-line-clamp 只在 display: -webkit-box 上有作用，所以那組宣告是死的。
+   * 當時看起來「有截斷」其實是 overflow: hidden 造成的，行數也不受 clamp 控制。
+   *
+   * 現在改由外層的 .project-description-clip 負責限高與裁切，這裡只管字級與行高。
+   * 代價是沒有省略號——但容器高度是行高的整數倍，文字會切在行邊界而不是切在
+   * 半個字上；加上卡片本身有「開啟」按鈕，讀者看得出還有內容。
+   * 標準的 line-clamp 屬性也實測過，這個環境不支援。
+   */
+  overflow: hidden;
+}
+
+/*
+ * 說明的裁切容器：它才是 .project-body 的 flex 子元素，負責「最多幾行」。
+ * 精簡版面用固定高度（見下方覆寫）而不是讓 flex 自動分配——實測自動分配
+ * 只拿到 41px（約 2 行），顯式指定同樣的空間就能放進 3 行 63px。
+ */
+.project-description-clip {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/*
+ * 名稱的裁切容器，理由與 .project-description-clip 完全相同——
+ * .project-name 也是 flex 子元素，它的 -webkit-line-clamp: 2 同樣無效。
+ * 少了這層，一個很長的專案名稱會一路往下長、把說明擠出卡片。
+ */
+.project-name-clip {
+  flex: none;
+  overflow: hidden;
+}
+
+/*
+ * 精簡版面的名稱最多 2 行：16px × 1.35 ≈ 21.6px，2 行約 44px（實測值）。
+ *
+ * 用 max-height 而不是 height——這個差別實測過：用固定 height 時，
+ * 只有 1 行的短名稱也會被撐成 2 行的高度，白白吃掉 22px，讓說明區溢出
+ * （實測四張卡片都溢出 18-20px）。改成 max-height 之後，短名稱只佔 1 行，
+ * 長名稱才會用到 2 行並在第 2 行結束處裁掉。
+ *
+ * 名稱真的用到 2 行時，說明的最後一行會被 .project-body 的 overflow: hidden
+ * 裁掉——這是刻意接受的降級（使用者 2026-08-28：「多出來沒有顯示的字就不顯示，
+ * 沒關係，要看詳細的就去清單看」）。
+ */
+.project-grid:not([data-layout="list"]) .project-name-clip {
+  max-height: calc(16px * 1.35 * 2);
+}
+
+/* 清單版面不限行數。 */
+.project-grid[data-layout="list"] .project-name-clip {
+  height: auto;
+  overflow: visible;
+}
+
+.project-grid[data-layout="list"] .project-name,
+.project-grid[data-layout="list"] .project-description {
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+/* 清單版面沒有高度壓力，說明不限行數也不裁切。 */
+.project-grid[data-layout="list"] .project-description-clip {
+  flex: none;
+  height: auto;
+  overflow: visible;
+}
+
+.project-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.project-tags[hidden] {
+  display: none;
+}
+
+.project-tags li {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--color-tag-surface);
+  color: var(--color-tag-text);
+  font-size: 0.82rem;
+}
+
+.project-updated {
+  margin: 4px 0 0;
+  color: var(--color-subtle);
+  font-size: 0.85rem;
+}
+
+/*
+ * 精簡版面的日期：貼到第一行的最右端（margin-left: auto），字級再小一級。
+ *
+ * 為什麼要靠右而不是接在徽章後面：徽章的數量與寬度是變動的（分類名稱長度不定、
+ * 型態與權限標記可能有可能沒有）。若讓日期緊跟在後面，徽章一長就會把日期推到
+ * 第二行，反而多佔一行——那正是這次改動要避免的事。靠右對齊則是徽章再長，
+ * 日期也只會被壓縮或換行一次，不會影響到說明區的高度預算。
+ */
+/*
+ * 精簡版面的說明文字：字級縮到 15px、行數放寬到 3 行（2026-08-28 使用者裁定）。
+ *
+ * 前一版是「0.98rem／2 行」，實測說明區只剩 65px 可用、行高 25.1px，
+ * 3 行需要 75.3px 放不下。使用者看過畫面後裁定「字體一樣可以改小約 15」，
+ * 換來的是每張卡片能寫的字數從約 30 字提高到約 45 字——說明是訪客判斷
+ * 「這個專案是什麼」的唯一依據，多那一行的價值高於字級小一點的代價。
+ *
+ * 清單版面不套用：那裡沒有高度壓力，維持較大的字級好讀。
+ */
+.project-grid:not([data-layout="list"]) .project-description {
+  /*
+   * 18px：2026-08-28 使用者裁定「說明文字調大到 18px」。
+   * 代價是同樣的裁切高度下能顯示的字數變少——使用者已明確表示
+   * 「多出來沒有顯示的字就不顯示，沒關係，要看詳細的就去清單看」，
+   * 也就是**可讀性優先於字數**。
+   */
+  font-size: 18px;
+  /*
+   * 行高 1.4 是實測值：說明區可用高度 65px，行高 1.5 時 3 行需要 67.5px
+   * （差 2.5px 放不下，clamp 設 3 也只會顯示 2 行）；1.4 時 3 行需要 63px 剛好放得下。
+   * 這個 2.5px 的差距用眼睛看不出來，但它決定了使用者能寫 30 字還是 45 字。
+   */
+  line-height: 1.4;
+}
+
+/*
+ * 精簡版面的說明最多 3 行：15px × 1.4 = 21px 行高，3 行 = 63px。
+ * 這是實測值——說明區扣掉第一行（28.4px）與名稱（21.6px）後，
+ * .project-body 的內容高 99px 剩下 49px；改用固定高度顯式要求 63px 後，
+ * 三行才真的顯示出來（flex 自動分配只給 41px、只顯示 2 行）。
+ */
+.project-grid:not([data-layout="list"]) .project-description-clip {
+  flex: none;
+  /*
+   * 高度維持不變（原本是 15px × 1.4 × 3 = 63px）。字級改成 18px 之後，
+   * 每行變成 25.2px，所以這個高度顯示 2 行多一點——刻意不跟著加高，
+   * 因為卡片高度已經談定（378px），而使用者裁定「顯示不下的就不顯示」。
+   */
+  height: 63px;
+}
+
+/* 精簡版面的名稱縮小一號，讓出的垂直空間給說明文字（2026-08-28 使用者裁定）。 */
+.project-grid:not([data-layout="list"]) .project-name {
+  font-size: 1rem;
+}
+
+.project-grid:not([data-layout="list"]) .project-meta .project-updated {
+  margin: 0 0 0 auto;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 2026-08-28 主畫面改造 Part B：grid／hero 版面的說明區固定只有 119px，
+ * 扣掉標題與說明文字後放不下「標籤列」與「最後更新時間」——這兩項在這
+ * 兩種版面隱藏，只在不受高度限制的 list 版面顯示（list 版面本來就是
+ * 為了看得更完整而存在，見上方 list 相關規則旁的既有註解）。
+ *
+ * 這是本次改造主動判斷後的取捨：規格只明訂了標題與說明文字的截斷規則，
+ * 沒有提到標籤與更新時間——兩者都不是「可以截斷顯示一部分」的資料
+ * （標籤截一半、日期截一半都沒有意義），所以用「這個版面不顯示」而不是
+ * 「硬擠可能溢出」處理。已在回報中明說，不是默默繞過規格。
+ */
+/*
+ * 2026-08-28 使用者裁定的精簡版面：日期回到第一行（見 index.html 的卡片模板），
+ * 所以這裡**不再隱藏 .project-updated**，只隱藏標籤列。
+ *
+ * 標籤仍然隱藏的理由不變：第一行已經有分類、型態標記、權限標記與日期，
+ * 再加一整列標籤會把說明壓到零行。標籤在「純文字清單」版面仍然看得到。
+ */
+.project-grid:not([data-layout="list"]) .project-tags {
+  display: none;
+}
+
+.project-open {
+  /* <p> 瀏覽器預設有上下 margin（約 1em），會吃掉 grid row 的高度，
+     讓按鈕沒有真正垂直置中在第三段的 59px 裡——2026-08-28 實測發現
+     （openComputedHeight 只有 42px，不是預期的 59px）。這裡歸零，
+     置中改由 flex align-items/justify-content 全權負責。 */
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+}
+
+/*
+ * list 版面的 article 是 flex column（見上方覆寫），這裡改回「貼齊底部」
+ * 取代 grid row 自動置中，維持跟改版前一致的「按鈕在卡片最下方」視覺。
+ */
+.project-grid[data-layout="list"] .project-open {
+  margin-top: auto;
+}
+
+/*
+ * 2026-08-28 主畫面改造 Part B6：連結從純文字改成真正的按鈕外觀。
+ * 沿用全站既有的 .button／.button-primary（見 public/styles.css:322 起），
+ * 不另外做一套平行的按鈕樣式——這裡只加這個情境需要、全站按鈕原本沒有的
+ * 陰影，且只作用在 .project-open 底下的 .button，不影響首頁 hero 或
+ * 後台等其他用到 .button-primary 的地方。置中由上面的 .project-open
+ * （display: flex + justify-content: center）負責。
+ */
+/*
+ * 按鈕尺寸固定、字放大到剛好填滿（2026-08-28 使用者裁定「按鈕的大小固定，
+ * 但是上面的字改成『開啟連結』，每個都一樣，按鈕上的字要放大到剛好在按鈕的
+ * 大小」）。
+ *
+ * 因為文字現在是固定的四個字，寬度不再隨專案名稱變動，所以可以放心把按鈕
+ * 撐滿整列寬度、字級放大——這是「文字統一」帶來的好處：先前每張卡片的按鈕
+ * 寬度都不一樣（跟著專案名稱長度變），統一之後四張卡片的按鈕完全一致。
+ *
+ * 字級 20px 是實測值：在按鈕撐滿卡片寬度（約 241px 內容寬）的情況下，
+ * 「開啟連結」四個字加上左右內距，20px 時視覺上剛好填滿而不擁擠。
+ */
+.project-open .button {
+  box-shadow: var(--shadow-sm);
+}
+
+.project-grid:not([data-layout="list"]) .project-open .button {
+  width: 100%;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+}
+
+/*
+ * 方案三把按鈕邊框加粗到 2px，但**卡片上的 CTA 收回 1px**。
+ *
+ * 兩個理由：
+ *   1. .button-primary 的邊框是 transparent，加粗在這裡看不到任何東西。
+ *   2. 卡片的 CTA 在固定 59px 的列裡，多出來的 1px 會把按鈕下緣頂進
+ *      article 的 overflow: hidden 裁切線（實測 scrollHeight 從 378 變 379）。
+ *
+ * 也就是說那 1px 只有代價沒有好處。其他地方（後台、次要按鈕）的粗邊框
+ * 是看得見的，維持 2px。
+ */
+[data-theme="three"] .project-open .button {
+  --width-button-border: 1px;
+}
+
+.project-open .project-open-missing {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-subtle);
+  font-size: 0.92rem;
+}
+
+/* ---------- 推薦連結（獨立於專案卡片，2026-08-27 工作計畫需求 A） ---------- */
+
+.links-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: var(--space-md);
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link-card-link {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  height: 100%;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.link-card-link:hover {
+  border-color: var(--color-border-hover);
+  box-shadow: 0 6px 20px rgb(29 29 31 / 7%);
+}
+
+.link-card-icon {
+  flex: none;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.link-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.link-card-name {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.link-card-description {
+  color: var(--color-secondary);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.link-card-category {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-surface-cool);
+  color: var(--color-secondary);
+  font-size: 0.78rem;
+}
+
+/* .link-card-category 是 .link-card-body（display: flex）的子元素，
+   同一個坑：flex 子項的 hidden 屬性會被覆蓋，需要這條覆寫
+   （見 tools/pitfalls.mjs 的 hidden-overridden-by-class）。 */
+.link-card-category[hidden] {
+  display: none;
+}
+
+/* ---------- 教材入口 ---------- */
+
+.resource-promo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  /*
+   * 上方留白（2026-08-30 使用者回報：這一區與上面的「推薦連結」黏在一起，
+   * 不好看）。兩個區塊都有自己的底色方塊，中間沒有間距時會看起來像同一塊
+   * 被切成兩半。取與下方 margin-bottom 同一組 clamp 值，讓上下留白對稱。
+   */
+  margin-top: clamp(56px, 8vw, 96px);
+  margin-bottom: clamp(56px, 8vw, 96px);
+  padding: clamp(28px, 4vw, 44px);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface-cool);
+}
+
+/*
+ * 文字區塊要拿走剩餘寬度（2026-08-28）。
+ *
+ * 實測發現只放寬 <p> 的 max-width 沒有用：這一區是 flex 容器，文字 <div> 分配到
+ * 的寬度只有 640px，max-width 設多大都無法超過父層。真正的瓶頸是 flex 分配，
+ * 所以要讓文字區塊 flex: 1 去claim 剩下的空間（實測可用約 860px，
+ * 而 42 個字約需 670px，足夠排成一行）。
+ */
+.resource-promo > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.resource-promo h2 {
+  margin: 0 0 10px;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+/*
+ * 2026-08-28 使用者要求這段說明「變成一行」。原本 max-width: 34rem（544px）
+ * 會把 43 個字硬折成兩行；改成 60rem 讓它在桌面寬度下排成一行。
+ *
+ * 不用 white-space: nowrap 強制不換行——那會在手機或視窗變窄時把文字推出畫面。
+ * 放寬容器讓它「有空間時排一行、沒空間時自然換行」才是對的做法。
+ */
+/*
+ * 選擇器刻意寫得比 public/styles.css:541 的 `.resource-promo p:last-child`
+ * 更明確：那一條有 max-width: 640px，`:last-child` 讓它的優先度高於單純的
+ * `.resource-promo p`，所以 2026-08-28 第一次只改後者完全沒生效
+ * （實測 computed max-width 仍是 640px）。加上 `> div:first-child` 之後
+ * 元素選擇器多一個，優先度才勝出。
+ */
+.resource-promo > div:first-child p {
+  margin: 0;
+  max-width: 60rem;
+  color: var(--color-secondary);
+}
+
+/*
+ * 「閱讀教材」按鈕整體放大（2026-08-28 使用者要求「字大 2 號，按鈕一起放大」）。
+ * 字級從共用的 12px 提到 16px（兩級），並同步加大內距與最小高度——只放大文字
+ * 會讓按鈕看起來被字撐滿、失去留白。
+ */
+.resource-promo-actions .button {
+  min-height: 56px;
+  padding: 14px 28px;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.resource-promo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+
+@media (max-width: 720px) {
+  .filter-group {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .resource-promo {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-chip,
+  .project-card > article,
+  .link-card-link,
+  .gallery-row-arrow {
+    transition: none;
+  }
+
+  /* 橫排捲動本身也是一種動態效果，減少動態時改回瀏覽器預設的立即跳轉。 */
+  .gallery-row-track {
+    scroll-behavior: auto;
+  }
+}
+
+/* 卡片的中介資訊列：分類 ＋ 型態標記 ＋ 權限標記。 */
+.project-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 6px;
+}
+
+.project-category[hidden],
+.project-kind[hidden],
+.project-access[hidden] {
+  /* 這幾個都是 span，`.project-meta` 的 flex 會讓 hidden 屬性失效——
+     與 2026-08-17 那個 .nav-link[hidden] 完全同一個坑：
+     類別選擇器的 display 優先度高於 hidden 屬性帶來的預設值。
+     `.project-access` 於 2026-08-24 新增時直接列進來，沒有再踩第四次。 */
+  display: none;
+}
+
+/* 同一個坑的第三次（2026-08-22 發現）。
+   `.filter-group` 與 `.filter-groups` 都寫了 display: flex，所以 app.js 設下
+   `tagGroup.hidden = true` 之後元素仍然看得見——沒有標籤時「依標籤」標題
+   還是照樣顯示，底下卻空無一物。
+   規則：**任何會被 JS 加上 hidden 的元素，只要它的 class 有 display，
+   就必須配一條 [hidden] 覆寫**。 */
+.filter-groups[hidden],
+.filter-group[hidden] {
+  display: none;
+}
+
+.project-kind {
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: var(--color-subtle-cool);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* 權限標記（需要密碼）。
+   刻意比型態標記更顯眼——它要回答的是「我點下去會不會白跑一趟」，
+   而型態標記只是補充說明。用實心底色而非外框，讓它在一排標記中先被看到。 */
+.project-access {
+  padding: 2px 8px;
+  border: 1px solid var(--color-warning-outline);
+  border-radius: 999px;
+  background: var(--color-warning-surface-soft);
+  color: var(--color-warning-text);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: nowrap;
+}

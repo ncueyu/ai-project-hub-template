@@ -1,0 +1,7 @@
+{
+  // 只用於在真實 Workers 執行環境（workerd）量測 PBKDF2 成本。
+  // 這不是產品的一部分，不會被部署。
+  "name": "pbkdf2-benchmark",
+  "main": "index.js",
+  "compatibility_date": "2026-08-08"
+}

@@ -1,0 +1,75 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "my-project-hub",
+	"main": "src/index.js",
+	"compatibility_date": "2026-08-08",
+	// 管理介面的總開關，預設關閉。
+	//
+	// 方向是刻意的：任何部署出去的版本，若沒有明確開啟就沒有管理後台。
+	// 忘記設定時的結果應該是「功能少一點」，而不是「後台大門敞開」。
+	//
+	// 本機開發透過 .dev.vars 設為 "true"（該檔案不會被部署，也不進版本控制）。
+	// 保護機制是 `src/admin-gate.js` 的自建密碼閘道，不是 Cloudflare Access——
+	// 2026-08-25 起放棄該計畫，理由見 `2026-08-25-工作計畫.md`。
+	//
+	// 2026-08-27 正式開啟。前置條件當天已完成，缺一不可：
+	//   1. ADMIN_PASSWORD_HASH（使用者自行以 `node tools/hash-admin-password.mjs`
+	//      產生雜湊後 `wrangler secret put` 設定，密碼與雜湊都未經過 AI）
+	//   2. SESSION_SIGNING_KEY（隨機值，`wrangler secret put` 設定）
+	// 兩把 Secret 缺任何一把時，登入一律失敗（fail closed，見 `src/admin-gate.js`），
+	// 不會變成無密碼即可進入——但也就沒有人進得去，所以順序是先設 Secret 再開這裡。
+	"vars": {
+		"ADMIN_ENABLED": "true"
+	},
+	"assets": {
+		"directory": "./public/",
+		"binding": "ASSETS",
+		// /api/* 是 Hub 自己的 API；/media/* 是由 Worker 從 R2 讀出的圖片；
+		// /admin/* 需要由 Worker 判斷是否開放，不能被當成靜態檔案直接送出。
+		"run_worker_first": [
+			"/api/*",
+			"/media/*",
+			"/admin/*"
+		]
+	},
+	// database_id 目前是佔位值。第一次執行 `node bin/hub.mjs init` 時，
+	// 它會幫你建立 D1 資料庫並把真正的 ID 寫進這裡。
+	//
+	// binding 必須維持 "DB"：程式碼讀的是 env.DB（src/http.js:97）。
+	// 建立當下 Wrangler 曾自動附加一組 binding 為 "ai_project_hub_db" 的重複設定，
+	// 已於同日合併移除，避免同一個資料庫掛在兩個名字下。
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "ai-project-hub-db",
+			"database_id": "00000000-0000-0000-0000-000000000010",
+			"migrations_dir": "migrations"
+		}
+	]
+	// R2 綁定已於 2026-08-16 暫時移除，原因記錄如下，之後要恢復時照著加回即可。
+	//
+	// 事實：`wrangler r2 bucket create` 回報 [code: 10042]「Please enable R2 through
+	// the Cloudflare Dashboard」——R2 是需要另外開通的獨立產品。
+	//
+	// 判斷：現階段開通它沒有意義。縮圖只能透過管理後台上傳，而正式環境
+	// ADMIN_ENABLED="false"（見上方 vars），部署出去的版本根本沒有後台，
+	// 線上不存在任何上傳縮圖的途徑；加上 D7 裁定「展示中心先空著」，
+	// 連專案都還沒有，更不會有縮圖。為一個目前無法使用的功能去綁付款方式並不划算。
+	//
+	// 安全性：程式碼本來就容許 R2 缺席——getThumbnailBucket() 在沒有 binding 時
+	// 回傳 null，由呼叫端轉成明確的 503（src/routes/thumbnails.js:13-23）。
+	// 因此移除綁定不會讓 Worker 崩潰，只會讓目前無人使用的 /media/* 路徑回 503。
+	//
+	// 恢復方式：① 到 Cloudflare Dashboard 開通 R2
+	//           ② `wrangler r2 bucket create ai-project-hub-thumbnails`
+	//           ③ 取消下面這段註解 ④ 重新部署
+	// 正式環境的圖片一律走 Worker 的 /media/thumbnails/ 路由，不使用 r2.dev。
+	//
+	// 恢復時記得把上面 "d1_databases" 陣列結尾的 `]` 後面補回一個逗號。
+	// "r2_buckets": [
+	// 	{
+	// 		"binding": "THUMBNAILS",
+	// 		"bucket_name": "ai-project-hub-thumbnails"
+	// 	}
+	// ]
+}

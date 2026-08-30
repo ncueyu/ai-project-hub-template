@@ -1,0 +1,605 @@
+/* ==========================================================================
+   經典連連看 (Shisen-Sho) - 支援多主題 (甜點/科技/藥水) 與 5x5 / 10x5 盤面
+   ========================================================================== */
+
+:root {
+  /* 預設甜點主題 (Dessert) */
+  --bg-main: #18131E;
+  --bg-card: #271E33;
+  --bg-board: #1C1526;
+  --text-main: #FFF1F2;
+  --text-muted: #A8A29E;
+  
+  --primary: #F43F5E;
+  --primary-hover: #E11D48;
+  --accent-glow: rgba(244, 63, 94, 0.6);
+  
+  --tile-bg: #FFFFFF;
+  --tile-border: #E2E8F0;
+  --tile-shadow: 0 3px 6px -1px rgba(0, 0, 0, 0.35);
+  --tile-selected-glow: 0 0 16px rgba(244, 63, 94, 0.9), 0 0 30px rgba(244, 63, 94, 0.5);
+  --tile-hint-glow: 0 0 16px rgba(245, 158, 11, 0.9), 0 0 28px rgba(245, 158, 11, 0.6);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+}
+
+/* 主題 2：科技符號 (Cyber & Tech) */
+body.theme-tech {
+  --bg-main: #0B0F19;
+  --bg-card: #111827;
+  --bg-board: #0F172A;
+  --text-main: #F0FDF4;
+  --text-muted: #94A3B8;
+  --primary: #38BDF8;
+  --primary-hover: #0284C7;
+  --accent-glow: rgba(56, 189, 248, 0.6);
+  --tile-selected-glow: 0 0 16px rgba(56, 189, 248, 0.9), 0 0 30px rgba(56, 189, 248, 0.5);
+}
+
+/* 主題 3：魔法藥水 (Magic Potions) */
+body.theme-potion {
+  --bg-main: #140F22;
+  --bg-card: #1E1735;
+  --bg-board: #1A132E;
+  --text-main: #FAF5FF;
+  --text-muted: #A855F7;
+  --primary: #A855F7;
+  --primary-hover: #9333EA;
+  --accent-glow: rgba(168, 85, 247, 0.6);
+  --tile-selected-glow: 0 0 16px rgba(168, 85, 247, 0.9), 0 0 30px rgba(168, 85, 247, 0.5);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html, body {
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden; /* 保證全畫面無需滾動滑鼠 */
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg-main);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(244, 63, 94, 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.06) 0px, transparent 50%);
+  color: var(--text-main);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 8px 12px;
+}
+
+/* 主容器 */
+.game-container {
+  width: 100%;
+  max-width: 1080px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 頂部 Header */
+.game-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-icon {
+  font-size: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.brand-title {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  background: linear-gradient(135deg, #FFFFFF 30%, #FEE2E2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* 選擇器群組 */
+.selector-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.select-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.select-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.custom-select {
+  background: transparent;
+  color: var(--text-main);
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  padding: 2px 2px;
+}
+
+.custom-select option {
+  background: var(--bg-card);
+  color: var(--text-main);
+}
+
+/* 狀態面板 */
+.stats-grid {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stat-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  min-width: 58px;
+}
+
+.stat-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.stat-value {
+  font-size: 14px;
+  font-weight: 800;
+  color: #FFFFFF;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 連擊徽章 */
+.combo-badge {
+  display: none;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  background: linear-gradient(135deg, #F43F5E, #FB7185);
+  color: #FFFFFF;
+  border-radius: 20px;
+  animation: pulseCombo 0.8s infinite alternate;
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.5);
+  white-space: nowrap;
+}
+
+.combo-badge.combo-active {
+  display: inline-block;
+}
+
+@keyframes pulseCombo {
+  0% { transform: scale(0.96); opacity: 0.9; }
+  100% { transform: scale(1.06); opacity: 1; }
+}
+
+/* 操作控制列 */
+.controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.action-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.action-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  color: #FFFFFF;
+  border: none;
+  font-weight: 800;
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.btn-badge {
+  background: rgba(0, 0, 0, 0.35);
+  color: #FFFFFF;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 8px;
+}
+
+.btn-active {
+  background: rgba(244, 63, 94, 0.2);
+  border-color: rgba(244, 63, 94, 0.4);
+  color: #FDA4AF;
+}
+
+/* 棋盤區域 (自適應全螢幕，絕不滾動) */
+.board-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-board);
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    inset 0 2px 8px rgba(0, 0, 0, 0.4),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* 網格容器 */
+.game-board {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  z-index: 1;
+  width: auto;
+  height: auto;
+}
+
+/* 5x5 規格尺寸限制 (5欄 x 5列，卡牌 3:4 比例，盤面總比例 3:4) */
+.game-board[data-size="5x5"] {
+  aspect-ratio: 3 / 4;
+  height: min(calc(100vh - 130px), 520px);
+  width: auto;
+  max-width: 90vw;
+}
+
+/* 10x5 規格尺寸限制 (10欄 x 5列，卡牌 3:4 比例，盤面總比例 3:2 = 1.5) */
+.game-board[data-size="10x5"] {
+  aspect-ratio: 3 / 2;
+  height: min(calc(100vh - 130px), 500px);
+  width: auto;
+  max-width: 94vw;
+}
+
+/* 連線軌跡 Canvas 疊加層 */
+.trail-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* 單格插槽與卡牌 */
+.tile-slot {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 5x5 中央星位裝飾空槽 */
+.center-hole-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-sm);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+}
+
+.center-star {
+  font-size: 20px;
+  opacity: 0.6;
+  animation: rotateStar 8s linear infinite;
+}
+
+@keyframes rotateStar {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.mahjong-tile {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  outline: none;
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, opacity 0.15s ease;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.mahjong-tile:hover {
+  transform: translateY(-2px) scale(1.04);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+}
+
+.mahjong-tile:active {
+  transform: scale(0.96);
+}
+
+.tile-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+/* 選中狀態高亮 */
+.mahjong-tile.tile-selected {
+  transform: translateY(-3px) scale(1.08);
+  filter: drop-shadow(0 0 12px var(--primary));
+  z-index: 5;
+}
+
+.mahjong-tile.tile-selected .tile-svg rect:first-child {
+  stroke: var(--primary);
+  stroke-width: 3;
+}
+
+/* 提示狀態閃爍 */
+.mahjong-tile.tile-hint {
+  transform: scale(1.08);
+  animation: hintPulse 0.4s infinite alternate;
+  filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.9));
+  z-index: 5;
+}
+
+.mahjong-tile.tile-hint .tile-svg rect:first-child {
+  stroke: #F59E0B;
+  stroke-width: 3;
+}
+
+@keyframes hintPulse {
+  0% { transform: scale(1.02); }
+  100% { transform: scale(1.12); }
+}
+
+/* 消去動畫 */
+.mahjong-tile.tile-eliminating {
+  transform: scale(0);
+  opacity: 0;
+  transition: transform 0.16s ease-out, opacity 0.16s ease-out;
+}
+
+/* 浮動訊息 Toast */
+.game-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(40px);
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(8px);
+  color: #FFFFFF;
+  padding: 6px 16px;
+  border-radius: 30px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 100;
+}
+
+.game-toast.toast-visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+/* 勝利結算彈窗 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(11, 19, 43, 0.75);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 200;
+}
+
+.modal-overlay.modal-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-card {
+  background: var(--bg-card);
+  border: 2px solid var(--primary);
+  padding: 24px 28px;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  max-width: 340px;
+  width: 88%;
+  transform: scale(0.9);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.modal-overlay.modal-visible .modal-card {
+  transform: scale(1);
+}
+
+.win-icon {
+  font-size: 44px;
+  margin-bottom: 4px;
+}
+
+.win-title {
+  font-size: 22px;
+  font-weight: 900;
+  margin-bottom: 4px;
+  background: linear-gradient(135deg, #FDE047, #F59E0B);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.win-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.win-stats-list {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.win-stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.win-stat-row span:first-child {
+  color: var(--text-muted);
+}
+
+.win-stat-row span:last-child {
+  font-weight: 800;
+  color: #FFFFFF;
+}
+
+.btn-full {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 768px) {
+  .game-header {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 6px 10px;
+  }
+  .header-left {
+    justify-content: space-between;
+  }
+  .stats-grid {
+    justify-content: space-between;
+  }
+}
+
+/* ---------- 範例專案的說明頁尾（2026-08-29 新增） ----------
+ *
+ * 用 currentColor 與半透明，不綁任何一個主題的色票——這個遊戲有三套主題
+ * （甜點／科技／魔法，由 body 的 class 切換），寫死顏色會在某一套主題下
+ * 變成看不見或刺眼。
+ */
+.sample-note {
+  max-width: 640px;
+  margin: 24px auto 32px;
+  padding: 16px 20px;
+  border: 1px dashed currentColor;
+  border-radius: 12px;
+  opacity: 0.75;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.sample-note p {
+  margin: 0;
+}
+
+.sample-note-title {
+  font-weight: 700;
+  margin-bottom: 6px !important;
+}

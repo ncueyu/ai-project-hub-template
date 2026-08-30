@@ -1,0 +1,19 @@
+{
+	// 靜態網站專用設定：沒有 "main"，只有 assets。
+	// Cloudflare 稱這種形態為「static-only Worker」——沒有伺服器端程式碼，
+	// 純粹把檔案送出去，所以不需要 D1、R2 或任何 binding。
+	//
+	// Worker 名稱＝project-hub.json 的 slug，兩邊刻意一致：
+	// 網址會是 https://<slug>.<帳號子網域>.workers.dev，
+	// 而 Hub 資料庫的 worker_name 欄位也記同一個值，方便日後對照與回復。
+	"name": "link-game",
+	"compatibility_date": "2026-08-08",
+
+	// ⚠️ assets 目錄【嚴禁】指向專案根目錄（"./"）。2026-08-16 在其他專案實測踩到：
+	//   1. Wrangler 會把自己產生的 `.wrangler/tmp/` 暫存檔一起算進資產並上傳。
+	//   2. `.assetsignore` 放在根目錄不會生效。
+	// 因此網站檔案一律放進 public/，設定檔與縮圖留在根目錄，天然不會被上傳。
+	"assets": {
+		"directory": "./public/"
+	}
+}

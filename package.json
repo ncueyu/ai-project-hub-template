@@ -1,0 +1,31 @@
+{
+  "name": "ai-project-hub",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "description": "AI Project Hub local skeleton for the Project Hub execution plan.",
+  "scripts": {
+    "dev": "node scripts/write-build-info.mjs && wrangler dev",
+    "build:info": "node scripts/write-build-info.mjs",
+    "deploy": "node scripts/write-build-info.mjs --env=production && wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test",
+    "check": "tsc --noEmit && node --test",
+    "dry-run": "wrangler deploy --dry-run",
+    "verify:stage2": "node scripts/verify-stage2.mjs",
+    "hub": "node bin/hub.mjs",
+    "mcp": "node bin/hub-mcp.mjs",
+    "check:env": "node scripts/check-environment.mjs",
+    "check:tools": "node scripts/check-tools.mjs",
+    "seed:local": "wrangler d1 execute ai-project-hub-db --local --file scripts/seed-local-d1.sql",
+    "integration:stage2": "node scripts/integration-stage2.mjs",
+    "benchmark:pbkdf2": "wrangler dev -c scripts/benchmark/wrangler.jsonc --port 8794",
+    "verify": "tsc --noEmit && node --test && node scripts/verify-stage2.mjs && wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260808.1",
+    "typescript": "7.0.2",
+    "wrangler": "4.120.0"
+  }
+}

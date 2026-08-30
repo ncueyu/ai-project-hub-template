@@ -1,0 +1,33 @@
+# 本機開發用的環境變數範本。
+#
+# 使用方式：把這個檔案複製成 .dev.vars（不含 .example），內容依需要調整。
+# .dev.vars 不會被部署，也不會進版本控制。
+#
+#   copy .dev.vars.example .dev.vars
+
+# 是否啟用管理後台與管理 API。
+#
+# wrangler.jsonc 中的預設值是 "false"，因此部署出去的版本預設沒有管理介面。
+# 本機開發需要操作後台，所以在這裡明確開啟。
+#
+# 正式環境要開啟之前，必須先設定好下面的 ADMIN_PASSWORD_HASH，
+# 否則等於把可以刪除全部資料的後台公開在網路上。
+# （2026-08-25 起改用自建密碼閘道 `src/admin-gate.js`，不再依賴 Cloudflare Access——
+#  理由：不想為了保護後台而綁定付款方式，且查證發現 workers.dev
+#  網域無法可靠做到只保護 /admin。）
+ADMIN_ENABLED=true
+
+# 管理後台自己的登入密碼，存的是雜湊，不是明碼。
+#
+# 產生方式：node tools/hash-admin-password.mjs，在你自己的終端機輸入密碼，
+# 它會印出這個格式的雜湊字串。正式環境改用 `wrangler secret put ADMIN_PASSWORD_HASH`，
+# 不可沿用這裡的值（下面這組雜湊對應的密碼是 admin-dev-only，只給本機測試用）。
+ADMIN_PASSWORD_HASH=pbkdf2-sha256$10000$qge7zyCMYhnyewXE+qTXqA==$x/ipvWIxsPZEqqRhGUvj3CBrReWT5KohfTUqb6PW3js=
+
+# 受保護專案的工作階段簽章金鑰。
+#
+# 「需要密碼」的專案會用到；管理後台的登入 session 也共用同一把
+# （見 `src/admin-gate.js` 的說明：project_id 哨兵值讓兩種用途天然隔離，
+# 不需要另開一把金鑰）。至少 32 個字元，請自行產生隨機值。
+# 正式環境必須改用 Cloudflare Secret，不可沿用這裡的值。
+SESSION_SIGNING_KEY=local-development-only-signing-key-change-me-0123456789

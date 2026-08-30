@@ -1,0 +1,6 @@
+{
+  // 偵測用的最小 Worker 設定。
+  "name": "fixture-worker",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-08"
+}

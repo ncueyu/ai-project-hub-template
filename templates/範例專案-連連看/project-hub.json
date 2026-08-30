@@ -1,0 +1,8 @@
+{
+  "name": "連連看遊戲",
+  "slug": "link-game",
+  "visibility": "private",
+  "platform": "cloudflare",
+  "project_type": "static",
+  "database_type": "none"
+}
