@@ -166,6 +166,24 @@ test("縮圖與設定檔留在根目錄，不會被搬進 public/", async () => 
   assert.equal(existsSync(join(dir, "public", "thumbnail.png")), false);
 });
 
+test("描述性檔名的截圖也留在根目錄，不是只認 thumbnail.png", async () => {
+  /*
+   * 2026-08-30 修正的既有缺陷：`hub new` 原本用固定檔名清單
+   * （thumbnail.png 等四個），而 `hub ship` 用的是 findThumbnailSource()
+   * ——它認得根目錄的任何圖片檔、且只看根目錄。
+   *
+   * 兩邊不一致的後果完全靜默：使用者放「我的網站截圖.png」，hub new 把它搬進
+   * public/，ship 於是永遠找不到它。使用者看到的是「圖放了、部署了、
+   * 卡片還是沒有預覽圖」，沒有任何訊息說明為什麼。
+   */
+  const dir = makeProject({ "index.html": "<h1>hi</h1>", "我的網站截圖.png": "fake" });
+
+  await newProject({ dir, confirm: ALWAYS_YES, prompt: answers("站", "my-site") });
+
+  assert.ok(existsSync(join(dir, "我的網站截圖.png")), "描述性檔名的截圖也要留在根目錄");
+  assert.equal(existsSync(join(dir, "public", "我的網站截圖.png")), false);
+});
+
 test("slug 不合格時重問，連續給錯就停下而不是無限迴圈", async () => {
   const dir = makeProject({ "public/index.html": "<h1>hi</h1>" }, "hub-new-badslug-");
 

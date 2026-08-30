@@ -4,7 +4,7 @@
 /**
  * 階段二端對端整合驗證。
  *
- * 這支腳本會實際啟動 wrangler dev、對真實的本機 D1 與 R2 發送 HTTP 請求，
+ * 這支腳本會實際啟動 wrangler dev、對真實的本機 D1 發送 HTTP 請求，
  * 驗證整條路徑真的能運作——單元測試用的假資料庫無法證明 SQL 跑不跑得起來。
  *
  * 執行前會自動把本機資料庫重置為 seed 狀態，因此可重複執行。
@@ -183,7 +183,8 @@ try {
     check(deleted.status === 204 && gone.status === 404, "刪除後查無該專案");
 
     // -------------------------------------------------- 圖片
-    section("Thumbnail（R2 本機模擬）");
+    // 2026-08-30 起縮圖存在 D1 裡（分段 BLOB），不再經過 R2。
+    section("Thumbnail（D1 分段 BLOB）");
 
     const png = Uint8Array.from(
       atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="),

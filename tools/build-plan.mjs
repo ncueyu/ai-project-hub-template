@@ -17,6 +17,7 @@ const DEFAULT_OUTPUT = Object.freeze({
   vite: "dist",
   "node-api": null,
   static: ".",
+  link: null,
   unknown: null,
 });
 
@@ -29,6 +30,7 @@ const DEFAULT_PLATFORM = Object.freeze({
   vite: "cloudflare",
   "node-api": "vercel",
   static: "cloudflare",
+  link: "external",
   unknown: null,
 });
 
@@ -115,6 +117,18 @@ export function planBuild(dir, options = {}) {
     }
   } else if (kind === "worker") {
     notes.push("Worker 的打包由 Wrangler 處理，不需要另外的建置指令。");
+  } else if (kind === "link") {
+    /*
+     * 外部連結專案沒有東西可以建置，也沒有東西可以部署——那個網站已經在
+     * 別的地方上線了。列成 blocker 而不是 note，是為了讓 `hub check`／
+     * `hub ship` 停在這裡並指出正確的指令；當成 note 放行的話，
+     * ship 會一路走到「找不到要上傳的檔案」才失敗，訊息完全看不出原因。
+     */
+    blockers.push(
+      "這是外部連結專案（資料夾裡只有一個寫著網址的文字檔，沒有網頁檔案）。\n"
+      + "它已經在別的地方上線了，不需要也不應該重新部署。\n"
+      + "要把它加進展示中心請用：node bin/hub.mjs link <資料夾>",
+    );
   } else if (kind === "unknown") {
     blockers.push("無法判斷專案型態。請在 project-hub.json 指定，或確認專案結構。");
   } else if (hasBuildScript) {

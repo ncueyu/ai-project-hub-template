@@ -58,6 +58,10 @@ import {
   rewriteGateEntry,
 } from "./inject-gate.mjs";
 import { ensureProjectRegistered, registerDeployment } from "./register.mjs";
+import { detectLinkFolder } from "./link-detect.mjs";
+import { getProject } from "./queries.mjs";
+import { findThumbnailSource } from "./thumbnail.mjs";
+import { storeThumbnailFromFile } from "./thumbnail-store.mjs";
 
 /** 目前固定為 1。若之後需要讓某個專案的所有工作階段一次失效，才需要遞增——
  *  目前沒有介面可以改這個值，先寫死，等真的需要再補。 */
@@ -128,6 +132,8 @@ export function parseDeployedUrl(stdout) {
  *   readPasswordHash?: typeof readPasswordHash,
  *   ensureProjectRegistered?: typeof ensureProjectRegistered,
  *   registerDeployment?: typeof registerDeployment,
+ *   storeThumbnail?: typeof storeThumbnailFromFile,
+ *   getProject?: typeof getProject,
  *   fetch?: typeof fetch,
  * }} options
  * @returns {Promise<ShipResult>}
@@ -137,6 +143,8 @@ export async function shipProject(dir, options) {
   const ensureProjectRegisteredFn = options.ensureProjectRegistered ?? ensureProjectRegistered;
   const registerDeploymentFn = options.registerDeployment ?? registerDeployment;
   const readPasswordHashFn = options.readPasswordHash ?? readPasswordHash;
+  const storeThumbnailFn = options.storeThumbnail ?? storeThumbnailFromFile;
+  const getProjectFn = options.getProject ?? getProject;
   const fetchFn = options.fetch ?? fetch;
   /** @type {ShipStep[]} */
   const steps = [];
@@ -149,6 +157,26 @@ export async function shipProject(dir, options) {
   function stop(step, detail) {
     steps.push({ step, status: "stopped", detail });
     return { ok: false, steps };
+  }
+
+  /*
+   * ── 外部連結專案：在動任何外部資源之前就攔下來（2026-08-30）──
+   *
+   * 位置很重要，必須在 publishToGithub() **之前**。那個函式會建立 GitHub repo
+   * 並推送——一個只有 txt 與截圖的資料夾就這樣變成一個實際存在的 repo，
+   * 然後流程才在後面的範圍檢查失敗。使用者看到的是「失敗」，
+   * 卻多了一個他從來沒要求過的 repo。
+   *
+   * 這個檢查只讀一次資料夾清單，成本可以忽略。
+   */
+  if (detectLinkFolder(dir).isLink) {
+    return stop(
+      "scope-check",
+      "這是外部連結專案：資料夾裡只有一個寫著網址的文字檔，沒有網頁檔案。\n"
+        + "那個網站已經在別的地方上線了，不需要也不應該由這裡重新部署，\n"
+        + "所以還沒有推送到 GitHub、也沒有部署任何東西。\n"
+        + `要把它加進展示中心（含預覽圖）請用：node bin/hub.mjs link ${dir}`,
+    );
   }
 
   // ── 步驟 1-5：GitHub（確認、掃描、建置測試、推送）全部交給既有的 hub github ──
@@ -415,6 +443,11 @@ export async function shipProject(dir, options) {
         worker_name: slug,
         deployment_url: deploymentUrl,
         version_ref: versionRef,
+        /*
+         * 這裡**不送** thumbnail_url（2026-08-30 改）。縮圖改由下面那一段
+         * 直接寫進 D1，`storeThumbnailFromFile()` 自己會更新這個欄位。
+         * 在這裡也送一份會變成兩處寫同一欄，日後一定會不一致。
+         */
       },
       { remote: options.remote },
     );
@@ -431,6 +464,79 @@ export async function shipProject(dir, options) {
     status: "ok",
     detail: `已登錄到 Hub 資料庫（id=${finalRegistration.projectId}）。`,
   });
+
+  /*
+   * ── 縮圖：把專案資料夾裡的截圖存進 D1 ──
+   *
+   * ## 為什麼從「複製進 public/thumbnails/」改成「存進 D1」（2026-08-30）
+   *
+   * 舊做法是把截圖複製成展示中心自己的靜態檔案。那有三個實際後果：
+   *
+   *   ① 圖只存在使用者的硬碟上，要再跑一次 `npm run deploy` 才會上線。
+   *      而 hub thumbnail／hub link／後台上傳都是即時的——同一件事有兩種
+   *      生效時機，AI 每次都得先判斷「這次要不要提醒重新部署」。
+   *
+   *   ② **會靜默蓋掉使用者在後台選的圖。** 舊做法把 thumbnail_url 交給
+   *      registerDeployment()，只要專案資料夾裡有任何圖片就會覆蓋。於是
+   *      「使用者在後台上傳了一張精挑的圖 → 過幾天改了網頁重新部署 →
+   *      半年前那張舊截圖把它蓋回去」，而且沒有任何提示。
+   *
+   *   ③ 每張 100～250 KB 的截圖進展示中心的 git 歷史，永遠拿不掉。
+   *
+   * 改走 D1 之後三個都消失，而且與另外三條路徑用同一套機制。
+   *
+   * ## 為什麼移到登錄之後
+   *
+   * `storeThumbnailFromFile()` 需要 projectId，而且它自己會下 UPDATE。
+   * 順序倒過來（先存圖再登錄）的話，中間失敗會留下「圖在 D1、但 projects
+   * 那一列還沒建好」的狀態。
+   *
+   * 失敗不中斷整個流程：網站已經上線了，縮圖只是卡片上的一張圖，
+   * 為了它把已經成功的部署標記成失敗是不成比例的。改成記一筆 warn。
+   */
+  const thumbnailSource = findThumbnailSource(dir);
+
+  if (thumbnailSource !== null) {
+    try {
+      /*
+       * 先查目前指到哪張圖，才能在換圖之後把舊的位元組刪掉。
+       * 不刪的話每次重新部署都留下一份沒有人指向的孤兒，慢慢吃掉 D1 配額，
+       * 而前端完全看不出來。查不到就當作沒有舊圖——多留一份孤兒，
+       * 比為了清理而讓一次成功的部署變成失敗好。
+       */
+      let previousThumbnailUrl = null;
+
+      try {
+        previousThumbnailUrl = (await getProjectFn(slug, { remote: options.remote }))?.thumbnail_url ?? null;
+      } catch {
+        /* 查不到就跳過孤兒清理 */
+      }
+
+      const stored = await storeThumbnailFn({
+        imagePath: thumbnailSource.path,
+        projectId: finalRegistration.projectId,
+        previousThumbnailUrl,
+        remote: options.remote,
+      });
+
+      steps.push({
+        step: "thumbnail",
+        status: "ok",
+        detail:
+          `已把「${thumbnailSource.name}」設為這個專案的預覽圖`
+          + `（${Math.round(stored.byteSize / 1024)} KB，分成 ${stored.chunkCount} 段存進資料庫）。\n`
+          + "      縮圖存在資料庫裡，**不需要重新部署展示中心**，重新整理就看得到。",
+      });
+    } catch (error) {
+      steps.push({
+        step: "thumbnail",
+        status: "warn",
+        detail:
+          `預覽圖設定失敗：${error instanceof Error ? error.message : String(error)}\n`
+          + "      網站本身已經正常上線，只是卡片會顯示「此專案尚無預覽圖」。",
+      });
+    }
+  }
 
   // ── 驗證：實際連線確認網站活著、狀態碼符合預期 ──
   const isPubliclyReachable = finalRegistration.visibility === "public" || finalRegistration.visibility === "unlisted";

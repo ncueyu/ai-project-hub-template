@@ -11,7 +11,7 @@
  * 用法一律走 `node bin/hub.mjs`，不依賴 PATH 上的任何東西。
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { pathToFileURL } from "node:url";
@@ -23,8 +23,10 @@ import { detectProject } from "../tools/detect.mjs";
 import { publishToGithub } from "../tools/github.mjs";
 import { listPitfalls, renderPitfalls, SCOPES } from "../tools/pitfalls.mjs";
 import { renderChecks, runPreDeployChecks } from "../tools/predeploy.mjs";
-import { getDeploymentStatus, listProjects } from "../tools/queries.mjs";
+import { getDeploymentStatus, getProject, listProjects } from "../tools/queries.mjs";
+import { storeThumbnailFromFile } from "../tools/thumbnail-store.mjs";
 import { initHub } from "../tools/init.mjs";
+import { linkProject } from "../tools/link.mjs";
 import { newProject } from "../tools/new-project.mjs";
 import { shipProject } from "../tools/ship.mjs";
 
@@ -44,13 +46,15 @@ const USAGE = `hub —— AI Project Hub 指令列工具
   ship [專案路徑]          推送 ＋ 部署 ＋ 登錄展示中心（僅限靜態專案，見下方說明）
   init                    初始化展示中心自己（建 D1、部署、寫入站名與版面設定，見下方說明）
   new <資料夾>             把一個資料夾初始化成可部署的專案（建 public/、產生兩個設定檔）
+  link <資料夾>            登錄一個已經在別的地方上線的網站（不部署、不需要後台密碼）
+  thumbnail <專案> <圖片>  把一張圖設成該專案的縮圖（存進 D1，不需要重新部署）
   pitfalls [情境]          列出已知的部署踩坑（每一項都是實際踩過才寫上來的）
   help                    顯示這份說明
 
 選項：
   --remote                改用遠端 D1（list／status 等查詢指令預設為本機模擬資料庫）
-  --local                 ship 用：改成只登錄到本機模擬資料庫（ship 預設就是遠端，
-                          因為它本來就會推 GitHub 並部署到真的 Cloudflare）
+  --local                 ship／link／thumbnail 用：改成只寫本機模擬資料庫。這三個
+                          指令預設就是遠端，因為它們的目的都是改變線上看得到的東西
   --json                  以 JSON 輸出，供程式讀取
   --limit=<數字>           限制筆數（1-100）
   --visibility=<狀態>      只列出指定可見性的專案
@@ -78,6 +82,8 @@ private；已存在的專案不覆蓋目前的權限設定。若目前權限是�
   node bin/hub.mjs check ../some-project --skip-build
   node bin/hub.mjs github ../some-project
   node bin/hub.mjs ship ../some-project
+  node bin/hub.mjs link 要部署的專案/我的班網
+  node bin/hub.mjs thumbnail resistor-color-code ./截圖.png
   node bin/hub.mjs init
 `;
 
@@ -280,9 +286,17 @@ function createPrompt() {
  * @param {import("../tools/github.mjs").PublishStep[]} steps
  */
 function renderPublishSteps(steps) {
-  const marks = { ok: "[完成]", skipped: "[略過]", stopped: "[停止]" };
+  /*
+   * `warn` 是 2026-08-30 由 ship 的縮圖步驟引入的，但當時漏了加進這張表——
+   * 於是那一行會印成「undefined thumbnail」。缺少的鍵一律退回 [注意] 而不是
+   * 讓 undefined 出現在使用者眼前：印錯字比漏掉一整段訊息容易發現，
+   * 但兩者都不該發生。
+   */
+  const marks = { ok: "[完成]", skipped: "[略過]", stopped: "[停止]", warn: "[注意]" };
 
-  return steps.map((step) => `${marks[step.status]} ${step.step}\n${step.detail}`).join("\n\n");
+  return steps
+    .map((step) => `${marks[step.status] ?? "[注意]"} ${step.step}\n${step.detail}`)
+    .join("\n\n");
 }
 
 /**
@@ -351,7 +365,13 @@ export function rejectUnexpectedPositional(command, positional) {
  * @returns {boolean}
  */
 export function resolveRemote(command, flags, fallback) {
-  if (command === "ship") {
+  /*
+   * `thumbnail` 與 `ship` 同一個理由（2026-08-30 加入）：使用者（或 AI）跑
+   * `hub thumbnail my-quiz 截圖.png` 是為了讓縮圖出現在**線上**的展示中心。
+   * 若沿用本機預設，圖會被寫進本機模擬資料庫，指令印出「已設定」，
+   * 而線上完全沒有變化——又是一次沒有錯誤訊息的失敗。
+   */
+  if (command === "ship" || command === "thumbnail" || command === "link") {
     return flags.local !== true;
   }
 
@@ -603,6 +623,73 @@ export async function main(argv) {
     }
   }
 
+  if (command === "link") {
+    const dir = positional[0];
+
+    if (!dir) {
+      process.stderr.write(
+        "請指定資料夾，例如：node bin/hub.mjs link 要部署的專案/我的班網\n\n"
+          + "那個資料夾裡要有一個寫著網址的文字檔（檔名不拘），\n"
+          + "想一併設定預覽圖的話再放一張截圖進去。\n",
+      );
+      return 1;
+    }
+
+    /*
+     * 與 `new` 一樣不提供 `--yes`：這會在展示中心上新增一張卡片，
+     * 而名稱、代稱、說明都是要人看過的。跳過確認省下的時間，
+     * 遠不及事後要進後台改正的麻煩。
+     */
+    const prompt = createPrompt();
+
+    /*
+     * 確認也走同一個 prompt，**不用 createConfirm()**。
+     *
+     * `createConfirm()` 每次呼叫都自己開一個新的 readline 介面。在真實終端機
+     * 沒問題，但 `link` 是先問三題再確認——而 createPrompt() 的介面在非 TTY
+     * （AI 或腳本用管線餵答案）時，早就把管線裡的所有行讀進自己的緩衝區了。
+     * 那時候第二個介面拿不到任何東西，`繼續嗎？` 會等一個永遠不會來的答案。
+     *
+     * 這與 createPrompt() 檔頭記的是同一個坑，只是換一個形狀出現：
+     * 一支程式對同一個 stdin 只能有一個讀取者。
+     */
+    const confirm = async (message) => {
+      process.stdout.write(`\n${message}\n`);
+
+      const answer = await prompt("繼續嗎？(y/n)");
+
+      return answer.trim().toLowerCase() === "y";
+    };
+
+    try {
+      const result = await linkProject({
+        dir: resolve(dir),
+        confirm,
+        prompt,
+        remote: options.remote,
+      });
+
+      process.stdout.write(`${renderPublishSteps(result.steps)}\n`);
+
+      if (result.ok) {
+        /*
+         * 這段話是強制的，理由與 ship 相同（AGENTS.md「部署完成後你一定要說的話」）：
+         * 新專案一律登錄為 private，所以使用者現在打開展示中心**還是看不到它**。
+         * 不主動講，他會以為指令失敗了。
+         */
+        process.stdout.write(
+          `\n已經登錄好了，但這個專案目前是**私人**狀態，展示中心還看不到它。\n`
+            + `請到管理後台把「${result.slug}」的權限改成「公開」，重新整理展示中心就會出現。\n`
+            + "（權限一律預設私人是刻意的：忘記設定的結果應該是沒人看得到，不是全世界都看得到。）\n",
+        );
+      }
+
+      return result.ok ? 0 : 1;
+    } finally {
+      prompt.close();
+    }
+  }
+
   if (command === "init") {
     const autoApprove = flags.yes === true;
 
@@ -638,6 +725,54 @@ export async function main(argv) {
 
     process.stderr.write("未完成——見上方逐項結果，找「[停止]」那一項的說明。\n");
     return 1;
+  }
+
+  if (command === "thumbnail") {
+    const identifier = positional[0];
+    const imagePath = positional[1];
+
+    if (!identifier || !imagePath) {
+      process.stderr.write(
+        "用法：node bin/hub.mjs thumbnail <專案代稱或編號> <圖片路徑>\n"
+          + "例如：node bin/hub.mjs thumbnail my-quiz 截圖.png\n",
+      );
+      return 1;
+    }
+
+    const project = await getProject(identifier, options);
+
+    if (!project) {
+      process.stderr.write(`找不到專案：${identifier}\n`);
+      return 1;
+    }
+
+    if (!existsSync(imagePath)) {
+      process.stderr.write(`找不到圖片檔案：${imagePath}\n`);
+      return 1;
+    }
+
+    try {
+      const result = await storeThumbnailFromFile({
+        imagePath,
+        projectId: project.id,
+        previousThumbnailUrl: project.thumbnail_url,
+        remote: options.remote,
+      });
+
+      const kb = Math.round(result.byteSize / 1024);
+
+      process.stdout.write(
+        `已設定「${project.name}」的縮圖。\n`
+          + `  格式：${result.contentType}，大小：${kb} KB，分成 ${result.chunkCount} 段存進資料庫\n`
+          + `  網址：${result.thumbnailUrl}\n\n`
+          + "縮圖存在資料庫裡，**不需要重新部署**，重新整理展示中心就看得到。\n",
+      );
+
+      return 0;
+    } catch (error) {
+      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
   }
 
   if (command === "pitfalls") {

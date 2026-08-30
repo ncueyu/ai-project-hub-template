@@ -24,7 +24,7 @@
 	"assets": {
 		"directory": "./public/",
 		"binding": "ASSETS",
-		// /api/* 是 Hub 自己的 API；/media/* 是由 Worker 從 R2 讀出的圖片；
+		// /api/* 是 Hub 自己的 API；/media/* 是由 Worker 從 D1 讀出的圖片；
 		// /admin/* 需要由 Worker 判斷是否開放，不能被當成靜態檔案直接送出。
 		"run_worker_first": [
 			"/api/*",
@@ -46,30 +46,11 @@
 			"migrations_dir": "migrations"
 		}
 	]
-	// R2 綁定已於 2026-08-16 暫時移除，原因記錄如下，之後要恢復時照著加回即可。
+
+	// 這裡不需要 R2。縮圖存在 D1 裡（migration 0004，分段 BLOB），
+	// 上限 1 MB 每張，理由與尺寸計算寫在 src/images.js 檔頭。
 	//
-	// 事實：`wrangler r2 bucket create` 回報 [code: 10042]「Please enable R2 through
-	// the Cloudflare Dashboard」——R2 是需要另外開通的獨立產品。
-	//
-	// 判斷：現階段開通它沒有意義。縮圖只能透過管理後台上傳，而正式環境
-	// ADMIN_ENABLED="false"（見上方 vars），部署出去的版本根本沒有後台，
-	// 線上不存在任何上傳縮圖的途徑；加上 D7 裁定「展示中心先空著」，
-	// 連專案都還沒有，更不會有縮圖。為一個目前無法使用的功能去綁付款方式並不划算。
-	//
-	// 安全性：程式碼本來就容許 R2 缺席——getThumbnailBucket() 在沒有 binding 時
-	// 回傳 null，由呼叫端轉成明確的 503（src/routes/thumbnails.js:13-23）。
-	// 因此移除綁定不會讓 Worker 崩潰，只會讓目前無人使用的 /media/* 路徑回 503。
-	//
-	// 恢復方式：① 到 Cloudflare Dashboard 開通 R2
-	//           ② `wrangler r2 bucket create ai-project-hub-thumbnails`
-	//           ③ 取消下面這段註解 ④ 重新部署
-	// 正式環境的圖片一律走 Worker 的 /media/thumbnails/ 路由，不使用 r2.dev。
-	//
-	// 恢復時記得把上面 "d1_databases" 陣列結尾的 `]` 後面補回一個逗號。
-	// "r2_buckets": [
-	// 	{
-	// 		"binding": "THUMBNAILS",
-	// 		"bucket_name": "ai-project-hub-thumbnails"
-	// 	}
-	// ]
+	// 2026-08-30 刪掉了原本那段「R2 綁定暫時移除，之後照著加回即可」的說明：
+	// R2 要另外開通並綁付款方式，而縮圖改存 D1 之後不必再開通任何東西，
+	// 也不會有人再走回那條路。留著一份恢復指示只會讓人以為那才是正解。
 }

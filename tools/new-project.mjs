@@ -26,6 +26,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync,
 import { basename, join } from "node:path";
 
 import { stripJsonComments } from "./config.mjs";
+import { findThumbnailSource } from "./thumbnail.mjs";
 
 /** 網站檔案要搬進去的子目錄。 */
 export const ASSETS_DIRECTORY = "public";
@@ -37,7 +38,7 @@ export const ASSETS_DIRECTORY = "public";
  * 根目錄，因為 wrangler 會把 `.wrangler/tmp/` 暫存檔一起算進資產並上傳，
  * 而 `.assetsignore` 放在根目錄不會生效（2026-08-16 在其他專案實測）。
  * 縮圖也留在根目錄：它是給展示中心用的中介資料，不是那個網站的內容，
- * `hub ship` 部署時會自動裁切轉檔搬走。
+ * `hub ship` 部署時會把它存進展示中心的資料庫（不裁切、不轉檔）。
  */
 const KEEP_AT_ROOT = Object.freeze([
   ".git",
@@ -53,9 +54,6 @@ const KEEP_AT_ROOT = Object.freeze([
   "pnpm-lock.yaml",
   "README.md",
 ]);
-
-/** 縮圖檔名（留在根目錄，不搬）。 */
-const THUMBNAIL_NAMES = Object.freeze(["thumbnail.png", "thumbnail.jpg", "thumbnail.jpeg", "thumbnail.webp"]);
 
 /**
  * slug 的格式規則。與 `src/validation.js` 的 `SLUG_PATTERN` 一致——
@@ -95,9 +93,24 @@ export function planMove(dir) {
 
   const htmlFiles = entries.filter((name) => /\.html?$/i.test(name));
 
+  /*
+   * 哪一張圖要留在根目錄當縮圖，交給 findThumbnailSource() 決定，
+   * **不用固定檔名清單**（2026-08-30 修正的既有缺陷）。
+   *
+   * 原本這裡寫死 thumbnail.png 等四個名字，但 hub ship 找縮圖用的是
+   * findThumbnailSource()——它認得根目錄的任何圖片檔。兩邊判斷不一致的後果是：
+   * 使用者放了「我的網站截圖.png」，hub new 不認得就把它搬進 public/，
+   * 而 findThumbnailSource() 只看根目錄，於是**永遠找不到它**。
+   * 使用者得到的是「圖放了、部署了、卡片還是沒有預覽圖」，而且沒有任何訊息。
+   *
+   * tools/thumbnail.mjs 的檔頭早就記著「真實使用者就是會用描述性檔名」，
+   * 那個教訓當時只套用到 ship，沒有套用到這裡。
+   */
+  const thumbnailName = findThumbnailSource(dir)?.name ?? null;
+
   const toMove = hasAssetsDir
     ? []
-    : entries.filter((name) => !KEEP_AT_ROOT.includes(name) && !THUMBNAIL_NAMES.includes(name.toLowerCase()));
+    : entries.filter((name) => !KEEP_AT_ROOT.includes(name) && name !== thumbnailName);
 
   return { hasAssetsDir, toMove, htmlFiles };
 }
@@ -289,14 +302,16 @@ export async function newProject(options) {
   writeIfAbsent(join(dir, "project-hub.json"), renderManifest(name, slug), "project-hub.json", steps);
 
   // ── 縮圖提醒 ────────────────────────────────────────────────
-  const hasThumbnail = readdirSync(dir).some((entry) => THUMBNAIL_NAMES.includes(entry.toLowerCase()));
+  const thumbnail = findThumbnailSource(dir);
 
   ok(
     "thumbnail",
-    hasThumbnail
-      ? "已找到縮圖，部署時會自動裁切搬進展示中心。"
-      : "還沒有縮圖。把一張截圖存成 thumbnail.png 放在這個資料夾的根目錄即可——\n"
-        + "  注意：放進去還不夠，要實際部署一次才會出現在展示中心。",
+    thumbnail
+      ? `已找到縮圖「${thumbnail.name}」，部署時會自動存進展示中心的資料庫。\n`
+        + "  不裁切也不轉檔，原圖是什麼比例就完整顯示什麼比例。"
+      : "還沒有縮圖。把網站首頁的截圖放進這個資料夾的根目錄即可——\n"
+        + "  檔名不限（「我的網站截圖.png」也可以），但不要放進 public\\。\n"
+        + "  注意：放進去還不夠，要實際部署一次才會存進展示中心。",
   );
 
   ok(

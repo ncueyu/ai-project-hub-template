@@ -28,8 +28,8 @@
  * 因此改成：認得專案根目錄的任何圖片檔。
  */
 
-import { copyFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
-import { basename, extname, join } from "node:path";
+import { readdirSync, statSync } from "node:fs";
+import { extname, join } from "node:path";
 
 /** 認得的圖片副檔名。 */
 const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"];
@@ -39,9 +39,6 @@ const PREFERRED_WORDS = ["thumbnail", "縮圖", "截圖", "screenshot", "preview
 
 /** 超過這個大小就提醒壓縮。縮圖只是卡片上的一小塊，不需要原始截圖的完整解析度。 */
 export const THUMBNAIL_WARN_BYTES = 500 * 1024;
-
-/** Hub 內存放縮圖的目錄（相對於 Hub 專案根目錄）。 */
-export const THUMBNAIL_OUTPUT_DIR = join("public", "thumbnails");
 
 /**
  * 在專案根目錄找縮圖來源。
@@ -107,32 +104,6 @@ export function findThumbnailSource(projectDir) {
   }
 
   return candidates.reduce((largest, candidate) => (candidate.bytes > largest.bytes ? candidate : largest));
-}
-
-/**
- * 把縮圖搬進 Hub 的靜態資產目錄。
- *
- * 檔名一律改成 `<slug>.<原副檔名>`：slug 天然唯一，且一眼對得上是哪個專案。
- * 保留原副檔名而不強制轉檔，是因為不做影像處理（見檔頭說明）。
- *
- * @param {string} sourcePath 縮圖來源的絕對路徑
- * @param {string} slug 專案 slug
- * @param {string} hubRoot Hub 專案根目錄
- * @returns {{ outputPath: string, publicUrl: string }}
- */
-export function installThumbnail(sourcePath, slug, hubRoot) {
-  const extension = extname(sourcePath).toLowerCase();
-  const outputDir = join(hubRoot, THUMBNAIL_OUTPUT_DIR);
-
-  mkdirSync(outputDir, { recursive: true });
-
-  const fileName = `${slug}${extension}`;
-  const outputPath = join(outputDir, fileName);
-
-  copyFileSync(sourcePath, outputPath);
-
-  // 存相對路徑而非完整網址：換子網域或改綁自有網域時不必動資料庫。
-  return { outputPath, publicUrl: `/thumbnails/${fileName}` };
 }
 
 /**

@@ -172,6 +172,58 @@ function readHttpsUrl(value, field, fields) {
 }
 
 /**
+ * 本站自己的縮圖路徑。
+ *
+ * `/media/thumbnails/…` 是上傳按鈕與 `hub thumbnail` 存進 D1 後產生的網址；
+ * `/thumbnails/…` 是 2026-08-30 之前 `hub ship` 複製成靜態檔的舊制路徑，
+ * 線上仍有專案指向它，所以必須繼續接受。
+ */
+const OWN_THUMBNAIL_PATH = /^\/(?:media\/thumbnails|thumbnails)\/[^/\\?#]+\.(?:png|jpe?g|webp|avif)$/i;
+
+/**
+ * 縮圖網址：比一般 URL 欄位多接受**本站自己的相對路徑**。
+ *
+ * ## 為什麼要另外寫一個（2026-08-30 使用者實測後才發現）
+ *
+ * `readHttpsUrl()` 要求絕對的 https 網址，而上傳 API 寫回資料庫、也填回表單的
+ * 是 `/media/thumbnails/<uuid>.png` 這種相對路徑。結果是：
+ *
+ *   按下「上傳圖片」→ 201 成功、欄位自動填入 → 按下「儲存」→ **驗證失敗**
+ *   「不是有效的網址」
+ *
+ * 圖其實已經存進資料庫、專案也已經指過去了（上傳那一步自己做了 UPDATE），
+ * 但使用者看到的是一個紅字錯誤，多半會以為整件事沒成功。
+ *
+ * ## 為什麼用白名單而不是「開頭是斜線就放行」
+ *
+ * `//evil.com/x.png` 開頭也是斜線，但瀏覽器會把它當成**絕對網址**（協定相對），
+ * 於是變成從別人的網域載入圖片。`/\evil.com` 在部分解析器裡有同樣效果。
+ * 只認這個系統自己會產生的兩種形狀，這類問題全部不存在。
+ *
+ * @param {unknown} value
+ * @param {string} field
+ * @param {Record<string, string>} fields
+ * @returns {string | null | undefined}
+ */
+function readThumbnailUrl(value, field, fields) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  if (isString(value) && OWN_THUMBNAIL_PATH.test(value)) {
+    return value;
+  }
+
+  if (isString(value) && value.startsWith("/")) {
+    // 走到這裡代表是斜線開頭但形狀不對。給出具體的形狀，不要只說「不是有效的網址」。
+    fields[field] = "本站的圖片路徑只接受 /media/thumbnails/… 或 /thumbnails/…（png、jpg、webp、avif）。";
+    return undefined;
+  }
+
+  return readHttpsUrl(value, field, fields);
+}
+
+/**
  * 給測試與其他呼叫端單獨核對網址協定用途，不牽涉必填、長度等其他規則。
  * 只接受 http 與 https（2026-08-27 使用者裁決）——推薦連結常包含校內系統
  * 的內部網址（例如教務系統、證照系統），只收 https 會直接擋掉合法情境。
@@ -326,7 +378,7 @@ export function validateProjectCreate(input) {
 
   const repositoryUrl = readHttpsUrl(input.repository_url, "repository_url", fields);
   const deploymentUrl = readHttpsUrl(input.deployment_url, "deployment_url", fields);
-  const thumbnailUrl = readHttpsUrl(input.thumbnail_url, "thumbnail_url", fields);
+  const thumbnailUrl = readThumbnailUrl(input.thumbnail_url, "thumbnail_url", fields);
   const categoryId = readOptionalId(input.category_id, "category_id", fields);
   const tagIds = readTagIds(input.tag_ids, "tag_ids", fields);
 
@@ -422,7 +474,7 @@ export function validateProjectPatch(input) {
   }
 
   if ("thumbnail_url" in input) {
-    const url = readHttpsUrl(input.thumbnail_url, "thumbnail_url", fields);
+    const url = readThumbnailUrl(input.thumbnail_url, "thumbnail_url", fields);
     if (url !== undefined) value.thumbnail_url = url;
   }
 

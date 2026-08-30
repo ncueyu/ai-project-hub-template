@@ -216,8 +216,11 @@
    * 顯示 fields，所以這張表只負責沒有 fields 的那些錯誤。
    */
   const ERROR_MESSAGES = Object.freeze({
-    R2_NOT_CONFIGURED:
-      "圖片儲存空間還沒設定，所以無法上傳檔案。你可以改用上面的「展示圖片網址」直接填寫圖片位置。",
+    /*
+     * 2026-08-30 移除 R2_NOT_CONFIGURED：「圖片儲存空間還沒設定，所以無法上傳
+     * 檔案」。縮圖改存 D1 之後，後端已經沒有任何路徑會回這個代碼——留著一句
+     * 永遠不會出現的錯誤訊息，只會讓人以為那個按鈕還是壞的。
+     */
     DATABASE_NOT_CONFIGURED:
       "這個環境沒有連上資料庫，後台無法讀寫資料。請確認 D1 綁定設定。",
     UNSUPPORTED_IMAGE_TYPE: "只接受 PNG、JPEG、WebP、AVIF 這四種圖片格式。",
@@ -1041,8 +1044,17 @@
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      errorEl.textContent = "圖片不能超過 5 MiB。";
+    /*
+     * 上限與 src/images.js 的 MAX_IMAGE_BYTES 一致（2026-08-30 從 5 MiB 降到
+     * 1 MiB）。這裡的檢查只是讓使用者更快得到回饋，伺服器端仍會再驗一次。
+     *
+     * 訊息刻意講「怎麼辦」而不只是「太大」——對不懂技術的人來說，
+     * 「1 MB」這個數字本身不構成可執行的下一步。
+     */
+    if (file.size > 1024 * 1024) {
+      errorEl.textContent =
+        "圖片不能超過 1 MB。縮圖只是卡片上的一小塊，不需要原始解析度——"
+        + "用「小畫家」開啟圖片 →「重新調整大小」→ 改成 50%，通常就會降到 300 KB 以內。";
       errorEl.hidden = false;
       input.setAttribute("aria-invalid", "true");
       input.focus();

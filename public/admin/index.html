@@ -597,19 +597,47 @@
 
           <div class="field">
             <label for="project-thumbnail-url">展示圖片網址</label>
+            <!--
+              placeholder 是刻意加的（2026-08-30）：說明文字在欄位下方，
+              而使用者的視線與游標都在欄位裡。範例寫在框框裡才看得到，
+              寫在下面那段有時候會被整段略過。
+              （placeholder 不能取代 label，但這裡 label 是獨立的元素，
+              所以只是多一個提示，不影響無障礙。）
+            -->
             <input type="text" id="project-thumbnail-url" name="thumbnail_url"
+              placeholder="https://example.com/我的網站截圖.png"
               autocomplete="off" aria-describedby="project-thumbnail-url-hint project-thumbnail-url-error" />
-            <p class="field-hint" id="project-thumbnail-url-hint">可以直接填寫圖片網址，或用下方的上傳功能。</p>
+            <p class="field-hint" id="project-thumbnail-url-hint">
+              這一格填的是「卡片上要顯示哪張圖」。留空的話卡片會顯示「此專案尚無預覽圖」。
+              <br />
+              直接貼上圖片的完整網址，例如
+              <code>https://example.com/我的網站截圖.png</code>——
+              只接受 <strong>https</strong> 開頭的網址（不是 <code>http</code>），
+              而且要是<strong>圖片本身</strong>的網址，不是那張圖所在的網頁。
+              <br />
+              不想找網址的話，用下面的「上傳圖片」直接傳一張，這一格會自動填成
+              <code>/media/thumbnails/……</code>——那是圖片存在你自己資料庫裡的位置，
+              是正常的，不要手動改它。
+            </p>
             <p class="field-error" id="project-thumbnail-url-error" hidden></p>
           </div>
 
           <div class="thumbnail-upload" id="thumbnail-upload" hidden>
-            <p class="field-hint" id="thumbnail-upload-r2-note">
-              本站目前未啟用圖片儲存空間，這個按鈕按下去會失敗。正式做法：把網站首頁的
-              截圖放進「要部署的專案」底下該專案自己的資料夾（跟 <code>wrangler.jsonc</code>
-              同一層，不要放進 <code>public</code> 裡），檔名不限，接著告訴我要「部署」——
-              光是把檔案放進資料夾還不會生效，一定要請我實際部署一次，截圖才會真正上線。
-              也可以不用截圖，直接在上面「展示圖片網址」欄位填一個現成的圖片網址。
+            <!--
+              2026-08-30：這段原本寫「本站目前未啟用圖片儲存空間，這個按鈕按下去會失敗」。
+              那在當時是實話（圖片要存 R2，而 R2 即使免費額度也要綁信用卡，那個綁定
+              從來沒啟用過），但縮圖已改存 D1，按鈕現在真的能用。留著那句話會讓
+              使用者不敢按一個好的功能——比壞掉的功能更可惜。
+            -->
+            <p class="field-hint" id="thumbnail-upload-note-intro">
+              預覽圖有三種放法，<strong>選一種就好</strong>：
+              ① 用下面的按鈕從這台電腦傳一張圖上去；
+              ② 在上面「展示圖片網址」欄位貼一個現成的圖片網址；
+              ③ 把截圖放進「要部署的專案」底下該專案自己的資料夾（跟
+              <code>wrangler.jsonc</code> 同一層，<strong>不要</strong>放進
+              <code>public</code> 裡），下次請 AI 部署時會自動帶上去。
+              <br />
+              三種都是存好就立刻生效，重新整理展示中心就看得到。
             </p>
             <div class="field">
               <label for="thumbnail-file">上傳圖片檔案</label>
@@ -617,7 +645,16 @@
                 accept="image/png,image/jpeg,image/webp,image/avif"
                 aria-describedby="thumbnail-file-hint thumbnail-file-error" />
               <p class="field-hint" id="thumbnail-file-hint">
-                支援 PNG、JPEG、WebP、AVIF，檔案不能超過 5 MiB。上傳後會立刻套用到這個專案。
+                選一張 PNG、JPEG、WebP 或 AVIF，<strong>不能超過 1 MB</strong>，
+                然後按下面的「上傳圖片」。成功之後上面的「展示圖片網址」會自動填好，
+                訊息會顯示「圖片已上傳並套用到這個專案」——這時候圖就已經生效了，
+                <strong>不需要重新部署</strong>。
+                <br />
+                圖太大的話：用「小畫家」開啟 →「重新調整大小」→ 改成 50%，
+                通常就會降到 300 KB 以內。
+                <br />
+                圖片<strong>不會被裁切</strong>，原本是什麼比例就完整顯示什麼比例，
+                所以手機直式的截圖也可以用，只是卡片左右會留白。
               </p>
               <p class="field-error" id="thumbnail-file-error" hidden></p>
             </div>

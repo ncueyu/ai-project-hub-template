@@ -18,8 +18,26 @@ export const ALLOWED_IMAGE_TYPES = Object.freeze([
   "image/avif",
 ]);
 
-/** 應用層的檔案大小上限：5 MiB。 */
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+/**
+ * 應用層的檔案大小上限：1 MiB（2026-08-30 從 5 MiB 調降）。
+ *
+ * 依據是實測既有檔案：線上四張縮圖最大 249 KB，使用者自己截的網頁截圖
+ * 最大 321 KB，範例專案的縮圖 32 KB。1 MiB 有三倍餘裕。會逼近上限的是
+ * 「整張都是漸層色塊」的生成圖，那本來就不該當縮圖。
+ *
+ * 調降的直接理由是縮圖改存 D1（migration 0004）：上限越小，分段數越少，
+ * CLI 產生的 SQL 檔也越短。
+ */
+export const MAX_IMAGE_BYTES = 1024 * 1024;
+
+/**
+ * 存進 D1 時每一段的大小。
+ *
+ * D1 的單一 SQL 語句上限是 100 KB，而 CLI 端寫的是十六進位字面值
+ * （一個位元組兩個字元）。40 KiB 的段落約產生 82 KB 的字面值，
+ * 加上語句本身仍安全落在上限內。
+ */
+export const THUMBNAIL_CHUNK_BYTES = 40 * 1024;
 
 const EXTENSIONS = Object.freeze({
   "image/png": "png",

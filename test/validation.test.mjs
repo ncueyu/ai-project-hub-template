@@ -272,3 +272,79 @@ test("link patch rejects an empty payload", () => {
   assert.equal(result.ok, false);
   assert.ok(result.fields._);
 });
+
+// ── 縮圖網址（2026-08-30 使用者實測後才發現的缺陷）────────────────
+//
+// 上傳 API 寫回資料庫、也填回表單的是 `/media/thumbnails/<uuid>.png` 這種
+// 相對路徑，而 thumbnail_url 原本走 readHttpsUrl()——只收絕對的 https 網址。
+// 於是：按下「上傳圖片」→ 201 成功、欄位自動填入 → 按下「儲存」→ 驗證失敗
+// 「不是有效的網址」。圖其實已經存進去了，但使用者看到紅字會以為整件事沒成功。
+
+test("thumbnail_url 接受本站自己的縮圖路徑", () => {
+  const paths = [
+    // 上傳按鈕與 hub thumbnail 存進 D1 之後產生的形狀
+    "/media/thumbnails/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.png",
+    // 2026-08-30 之前 hub ship 複製成靜態檔的舊制路徑，線上仍有專案指向它
+    "/thumbnails/exam-quiz.png",
+    "/thumbnails/我的截圖.jpg",
+    "/thumbnails/x.webp",
+    "/thumbnails/x.avif",
+  ];
+
+  for (const path of paths) {
+    const result = validateProjectPatch({ thumbnail_url: path });
+
+    assert.equal(result.ok, true, `${path} 應該通過：${JSON.stringify(result.fields)}`);
+    assert.equal(result.value.thumbnail_url, path);
+  }
+});
+
+test("thumbnail_url 不接受看起來像相對路徑、其實會連到別人網域的值", () => {
+  /*
+   * `//evil.com/x.png` 開頭也是斜線，但瀏覽器把它當成**絕對網址**（協定相對），
+   * 於是變成從別人的網域載入圖片。所以這裡用白名單而不是「開頭是斜線就放行」。
+   */
+  const rejected = [
+    "//evil.com/x.png",
+    "/\evil.com/x.png",
+    "/media/thumbnails/../../etc/passwd",
+    "/admin/index.html",
+    "/thumbnails/x.svg",
+    "/thumbnails/",
+    "/thumbnails/x.png?a=b",
+    "/thumbnails/x.png#frag",
+  ];
+
+  for (const value of rejected) {
+    const result = validateProjectPatch({ thumbnail_url: value });
+
+    assert.equal(result.ok, false, `${value} 應該被擋下`);
+    assert.ok(result.fields.thumbnail_url);
+  }
+});
+
+test("thumbnail_url 仍然只接受 https 的外部網址", () => {
+  assert.equal(validateProjectPatch({ thumbnail_url: "https://example.com/a.png" }).ok, true);
+
+  for (const value of ["http://example.com/a.png", "javascript:alert(1)", "data:image/png;base64,AAAA"]) {
+    assert.equal(validateProjectPatch({ thumbnail_url: value }).ok, false, `${value} 應該被擋下`);
+  }
+});
+
+test("thumbnail_url 的空值代表「沒有縮圖」，不是錯誤", () => {
+  for (const value of [null, ""]) {
+    const result = validateProjectPatch({ thumbnail_url: value });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.value.thumbnail_url, null);
+  }
+});
+
+test("建立專案時的 thumbnail_url 走同一套規則", () => {
+  // 兩條路徑各有一份呼叫，改一邊忘了另一邊的話這裡會紅。
+  const result = validateProjectCreate(
+    baseProject({ thumbnail_url: "/media/thumbnails/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.png" }),
+  );
+
+  assert.equal(result.ok, true, JSON.stringify(result.fields));
+});

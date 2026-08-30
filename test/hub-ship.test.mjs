@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -328,6 +328,141 @@ test("an existing public project is not gated, and deploys without a secrets fil
   const deployCall = calls.find((c) => c.includes("deploy"));
 
   assert.equal(deployCall.includes("--secrets-file"), false);
+});
+
+// ── 縮圖（2026-08-30 接上，同日改存 D1）──────────────────────────
+//
+// 兩個缺口的護欄：
+//
+//   ① installThumbnail() 從 2026-08-17 就寫好了，但**從來沒有任何地方呼叫它**，
+//      而 AGENTS.md 第 8 節卻寫著「hub ship 部署時會自動搬走」。使用者把截圖
+//      放進資料夾不會有任何事發生，也不會有錯誤訊息。
+//
+//   ② 接上之後才發現舊做法（複製成 public/thumbnails/ 的靜態檔）會**靜默蓋掉
+//      使用者在後台選的圖**：thumbnail_url 交給 registerDeployment()，只要資料夾
+//      裡有任何圖片就覆蓋。改成存 D1 並由 storeThumbnailFromFile() 自己更新。
+
+test("專案資料夾裡的截圖會被存進 D1 並指給這個專案", async () => {
+  const { options } = makeShipOptions();
+  const projectDir = makeProject();
+
+  writeFileSync(join(projectDir, "我的網站截圖.png"), "fake-png-bytes");
+
+  let registeredFields = null;
+  let stored = null;
+
+  options.ensureProjectRegistered = async () => ({ projectId: 7, visibility: "public", isNew: false });
+  options.registerDeployment = async (fields) => {
+    registeredFields = fields;
+    return { projectId: 7, visibility: "public", isNew: false };
+  };
+  options.getProject = async () => ({ id: 7, thumbnail_url: "/media/thumbnails/old.png" });
+  options.storeThumbnail = async (input) => {
+    stored = input;
+    return { thumbnailUrl: "/media/thumbnails/new.png", chunkCount: 1, byteSize: 14, contentType: "image/png" };
+  };
+  options.fetch = async () => new Response("OK", { status: 200 });
+
+  const result = await shipProject(projectDir, options);
+
+  assert.equal(result.ok, true, JSON.stringify(result.steps, null, 2));
+
+  assert.ok(stored, "應該呼叫 storeThumbnailFromFile()");
+  assert.match(stored.imagePath, /我的網站截圖\.png$/);
+  // projectId 要用登錄回來的真實 id，不能是別的東西。
+  assert.equal(stored.projectId, 7);
+  // 舊圖的位元組要被清掉，否則每次重新部署都留下一份孤兒吃掉 D1 配額。
+  assert.equal(stored.previousThumbnailUrl, "/media/thumbnails/old.png");
+
+  /*
+   * **registerDeployment 不可以再收到 thumbnail_url。** 兩處寫同一欄日後一定會
+   * 不一致，而且那正是舊做法蓋掉使用者後台選圖的來源。
+   */
+  assert.equal(registeredFields.thumbnail_url, undefined);
+
+  const step = result.steps.find((s) => s.step === "thumbnail");
+
+  assert.equal(step.status, "ok");
+  // 存 D1 是即時生效的，**不可以**再叫使用者重新部署展示中心——
+  // 叫人做一件不需要做的事，下次他就不會相信講的時序了。
+  assert.equal(/npm run deploy/.test(step.detail), false);
+  assert.match(step.detail, /不需要重新部署/);
+});
+
+test("縮圖存檔失敗只記 warn，不讓已經成功的部署變成失敗", async () => {
+  const { options } = makeShipOptions();
+  const projectDir = makeProject();
+
+  writeFileSync(join(projectDir, "截圖.png"), "fake-png-bytes");
+
+  options.ensureProjectRegistered = async () => ({ projectId: 7, visibility: "public", isNew: false });
+  options.registerDeployment = async () => ({ projectId: 7, visibility: "public", isNew: false });
+  options.getProject = async () => ({ id: 7, thumbnail_url: null });
+  options.storeThumbnail = async () => {
+    throw new Error("這張圖 3.2 MB，超過 1 MB 的上限。");
+  };
+  options.fetch = async () => new Response("OK", { status: 200 });
+
+  const result = await shipProject(projectDir, options);
+
+  // 網站已經上線了，為了一張卡片上的圖把整次部署標成失敗是不成比例的。
+  assert.equal(result.ok, true, JSON.stringify(result.steps, null, 2));
+
+  const step = result.steps.find((s) => s.step === "thumbnail");
+
+  assert.equal(step.status, "warn");
+  assert.match(step.detail, /超過 1 MB/);
+});
+
+test("查不到既有專案時仍然存得進去，只是跳過孤兒清理", async () => {
+  const { options } = makeShipOptions();
+  const projectDir = makeProject();
+
+  writeFileSync(join(projectDir, "截圖.png"), "fake-png-bytes");
+
+  let stored = null;
+
+  options.ensureProjectRegistered = async () => ({ projectId: 7, visibility: "public", isNew: true });
+  options.registerDeployment = async () => ({ projectId: 7, visibility: "public", isNew: true });
+  options.getProject = async () => {
+    throw new Error("D1 連不上");
+  };
+  options.storeThumbnail = async (input) => {
+    stored = input;
+    return { thumbnailUrl: "/media/thumbnails/x.png", chunkCount: 1, byteSize: 14, contentType: "image/png" };
+  };
+  options.fetch = async () => new Response("OK", { status: 200 });
+
+  const result = await shipProject(projectDir, options);
+
+  assert.equal(result.ok, true, JSON.stringify(result.steps, null, 2));
+  assert.equal(stored.previousThumbnailUrl, null);
+  assert.equal(result.steps.find((s) => s.step === "thumbnail").status, "ok");
+});
+
+test("沒有截圖時不產生縮圖步驟，也完全不碰 thumbnail_url（不覆蓋後台設好的圖）", async () => {
+  const { options } = makeShipOptions();
+
+  let registeredFields = null;
+  let storeCalls = 0;
+
+  options.ensureProjectRegistered = async () => ({ projectId: 7, visibility: "public", isNew: false });
+  options.registerDeployment = async (fields) => {
+    registeredFields = fields;
+    return { projectId: 7, visibility: "public", isNew: false };
+  };
+  options.storeThumbnail = async () => {
+    storeCalls += 1;
+    return { thumbnailUrl: "", chunkCount: 0, byteSize: 0, contentType: "image/png" };
+  };
+  options.fetch = async () => new Response("OK", { status: 200 });
+
+  const result = await shipProject(makeProject(), options);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.steps.some((s) => s.step === "thumbnail"), false);
+  assert.equal(storeCalls, 0);
+  assert.equal(registeredFields.thumbnail_url, undefined);
 });
 
 test("password 專案會注入閘道並完成部署（2026-08-29 起支援，原本是擋停）", async () => {

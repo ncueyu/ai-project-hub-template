@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildInsertDeploymentSql,
+  buildUpdateThumbnailSql,
   buildUpsertProjectSql,
   decideRegisteredVisibility,
   ensureProjectRegistered,
@@ -166,6 +167,71 @@ test("registerDeployment: an existing project updates without touching visibilit
   assert.match(calls[0].sql, /^UPDATE projects/);
   assert.match(calls[0].sql, /WHERE id = 55/);
   assert.equal(calls[0].sql.includes("visibility ="), false);
+});
+
+// ── 縮圖（2026-08-30）──────────────────────────────────────────────
+//
+// 一般部署刻意不碰 thumbnail_url（使用者可能在後台自己設過圖）。
+// 只有「這次真的在專案資料夾裡裝了新縮圖」才該覆蓋，所以走獨立語句。
+
+test("buildUpdateThumbnailSql 只改縮圖與更新時間，不碰其他欄位", () => {
+  const sql = buildUpdateThumbnailSql(42, "/thumbnails/resistor-quiz.png", NOW);
+
+  assert.match(sql, /^UPDATE projects SET/);
+  assert.match(sql, /thumbnail_url = '\/thumbnails\/resistor-quiz\.png'/);
+  assert.match(sql, /WHERE id = 42$/);
+
+  for (const column of ["name", "visibility", "deployment_url", "repository_url", "worker_name"]) {
+    assert.equal(new RegExp(`\\b${column}\\s*=`).test(sql), false, `不該碰 ${column}`);
+  }
+});
+
+test("registerDeployment: 帶了縮圖時多送一句只更新縮圖的語句", async () => {
+  const calls = [];
+
+  await registerDeployment(
+    {
+      name: "既有專案",
+      slug: "already-there",
+      platform: "cloudflare",
+      project_type: "static",
+      deployment_url: "https://already-there.example.workers.dev",
+      thumbnail_url: "/thumbnails/already-there.png",
+    },
+    { now: NOW, getProject: async () => ({ id: 55, visibility: "public" }), executeSql: makeFakeExecuteSql(calls) },
+  );
+
+  const thumbnailCall = calls.find((call) => call.sql.includes("thumbnail_url ="));
+  assert.ok(thumbnailCall, "應該有一句更新縮圖的語句");
+  assert.match(thumbnailCall.sql, /WHERE id = 55/);
+});
+
+test("registerDeployment: 沒帶縮圖時完全不碰 thumbnail_url", async () => {
+  /*
+   * 這條守的是「重跑 ship 而使用者剛好把截圖移走」的情況——那時候不該把
+   * 他原本的縮圖（可能是後台自己設的）一起清掉。
+   */
+  for (const thumbnail of [undefined, null, ""]) {
+    const calls = [];
+
+    await registerDeployment(
+      {
+        name: "既有專案",
+        slug: "already-there",
+        platform: "cloudflare",
+        project_type: "static",
+        deployment_url: "https://already-there.example.workers.dev",
+        thumbnail_url: thumbnail,
+      },
+      { now: NOW, getProject: async () => ({ id: 55, visibility: "public" }), executeSql: makeFakeExecuteSql(calls) },
+    );
+
+    assert.equal(
+      calls.some((call) => call.sql.includes("thumbnail_url =")),
+      false,
+      `thumbnail_url 為 ${String(thumbnail)} 時不該產生任何縮圖寫入`,
+    );
+  }
 });
 
 test("registerDeployment: throws instead of silently registering a deployment against no project id", async () => {

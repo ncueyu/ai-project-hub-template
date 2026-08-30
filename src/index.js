@@ -22,7 +22,6 @@ import {
 
 /**
  * @typedef {import("./http.js").Env & {
- *   THUMBNAILS?: R2Bucket,
  *   ADMIN_ENABLED?: string,
  *   SESSION_SIGNING_KEY?: string,
  *   ADMIN_PASSWORD_HASH?: string,
@@ -196,8 +195,9 @@ async function handleApi(request, env, url, segments) {
 }
 
 /**
- * The Hub owns metadata only. Access, R2, project injection, and deployment
- * adapters belong to later Tasks.
+ * The Hub owns metadata only. Access, project injection, and deployment
+ * adapters belong to later Tasks. (Thumbnails moved into D1 on 2026-08-30;
+ * the R2 bucket this comment used to mention was never enabled.)
  *
  * @type {ExportedHandler<Env>}
  */
@@ -248,7 +248,8 @@ const worker = {
       return env.ASSETS.fetch(request);
     }
 
-    // 展示圖片由 Worker 從 R2 讀出，不經過 r2.dev，也不需要資料庫。
+    // 展示圖片由 Worker 從 D1 讀出（2026-08-30 起；原本是 R2，但那個綁定
+    // 從來沒啟用過，見 wrangler.jsonc）。位元組分段存放，讀取端負責接回來。
     if (url.pathname.startsWith("/media/thumbnails/")) {
       const segments = url.pathname.split("/").filter(Boolean);
       return handleThumbnailFetch(request, env, segments.slice(2));

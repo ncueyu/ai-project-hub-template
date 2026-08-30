@@ -122,6 +122,30 @@ export function buildUpsertProjectSql(fields, existing, now) {
 }
 
 /**
+ * 只更新縮圖網址的獨立語句（2026-08-30）。
+ *
+ * **為什麼不加進上面那條 UPDATE**：那條刻意不覆蓋 `thumbnail_url`，因為
+ * 使用者可能在後台自己設過圖，每次部署都蓋掉他的選擇是錯的。
+ *
+ * 但「使用者這次在專案資料夾裡放了一張新截圖」是一個明確的意圖表達，
+ * 那時候就該覆蓋。拆成獨立語句讓這兩種情況分得開：
+ * 一般部署完全不碰這個欄位，只有真的裝了新縮圖才呼叫這裡。
+ *
+ * @param {number} projectId
+ * @param {string} thumbnailUrl
+ * @param {string} now
+ * @returns {string}
+ */
+export function buildUpdateThumbnailSql(projectId, thumbnailUrl, now) {
+  return [
+    "UPDATE projects SET",
+    `thumbnail_url = ${sqlLiteral(thumbnailUrl)},`,
+    `updated_at = ${sqlLiteral(now)}`,
+    `WHERE id = ${sqlLiteral(projectId)}`,
+  ].join(" ");
+}
+
+/**
  * @param {{
  *   project_id: number,
  *   platform: string,
@@ -190,6 +214,16 @@ export async function registerDeployment(fields, options = {}) {
   );
 
   await executeSqlFn(deploymentSql, { remote });
+
+  /*
+   * 縮圖只在呼叫端明確帶了值時才寫（2026-08-30）。
+   *
+   * 走獨立語句而不是併進上面那條 UPDATE，理由見 buildUpdateThumbnailSql()：
+   * 一般部署不該覆蓋使用者在後台設好的圖，只有「這次真的裝了新縮圖」才覆蓋。
+   */
+  if (typeof fields.thumbnail_url === "string" && fields.thumbnail_url !== "") {
+    await executeSqlFn(buildUpdateThumbnailSql(projectId, fields.thumbnail_url, now), { remote });
+  }
 
   return { projectId, visibility, isNew: existing === null };
 }

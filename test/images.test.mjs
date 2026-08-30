@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   ALLOWED_IMAGE_TYPES,
   MAX_IMAGE_BYTES,
+  THUMBNAIL_CHUNK_BYTES,
   createObjectKey,
   detectImageType,
   extensionFor,
@@ -112,8 +113,32 @@ test("object key validation blocks traversal and unexpected shapes", () => {
   }
 });
 
-test("size limit is exactly 5 MiB", () => {
-  assert.equal(MAX_IMAGE_BYTES, 5 * 1024 * 1024);
+test("size limit is exactly 1 MiB", () => {
+  /*
+   * 2026-08-30 從 5 MiB 調降。依據是實測既有檔案：線上四張縮圖最大 249 KB、
+   * 使用者自己截的網頁截圖最大 321 KB、範例專案的縮圖 32 KB。
+   *
+   * 上限同時決定 D1 的分段數（migration 0004）：1 MiB ÷ 40 KiB = 25 段，
+   * 每段的十六進位字面值約 82 KB，安全落在 D1 的 100 KB 語句上限內。
+   * 調高這個值之前要先確認分段數仍在合理範圍。
+   */
+  assert.equal(MAX_IMAGE_BYTES, 1024 * 1024);
+});
+
+test("分段大小讓最大的圖也不會撞到 D1 的 100 KB 語句上限", () => {
+  // 1 MiB ÷ 40 KiB = 25.6，無條件進位 26 段。寫死這個數字是刻意的：
+  // 兩個常數任何一個被調整，這裡就會紅，逼人重新確認語句長度還安全。
+  const chunks = Math.ceil(MAX_IMAGE_BYTES / THUMBNAIL_CHUNK_BYTES);
+
+  assert.equal(chunks, 26);
+
+  // CLI 寫的是十六進位字面值，一個位元組兩個字元，另外抓 200 字元給語句本身。
+  const worstCaseStatementBytes = THUMBNAIL_CHUNK_BYTES * 2 + 200;
+
+  assert.ok(
+    worstCaseStatementBytes < 100_000,
+    `單段語句 ${worstCaseStatementBytes} 位元組，已逼近 D1 的 100 KB 上限`,
+  );
 });
 
 test("unknown content types fall back to a neutral extension", () => {

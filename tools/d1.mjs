@@ -197,6 +197,48 @@ export async function executeSql(sql, options = {}) {
 }
 
 /**
+ * 執行一個 .sql 檔案裡的所有敘述。
+ *
+ * 為什麼需要它而不是沿用 `executeSql()`：那個走 `--command`，把整段 SQL 當成
+ * 一個命令列參數。縮圖分成 26 段之後，總長度是 MB 等級，遠超過作業系統對
+ * 單一參數的長度限制——只有 `--file` 這條路走得通。
+ *
+ * 呼叫端負責建立與刪除那個檔案。這裡刻意不接受 SQL 字串再自己寫檔，
+ * 因為暫存檔的生命週期（放哪裡、失敗時要不要留著給人看）是呼叫端的決定。
+ *
+ * @param {string} filePath 絕對路徑
+ * @param {{ remote?: boolean, databaseName?: string }} [options]
+ * @returns {Promise<void>}
+ */
+export async function executeSqlFile(filePath, options = {}) {
+  const remote = options.remote === true;
+
+  if (remote && !hasRemoteDatabase()) {
+    throw new Error(
+      "遠端 D1 尚未建立（wrangler.jsonc 的 database_id 仍是佔位值）。"
+        + "請先建立遠端資料庫並填入真實的 database_id，或改用本機模式。",
+    );
+  }
+
+  const databaseName = options.databaseName ?? getDatabaseName();
+  const args = [
+    resolveWranglerEntry(),
+    "d1",
+    "execute",
+    databaseName,
+    remote ? "--remote" : "--local",
+    "--file",
+    filePath,
+  ];
+
+  const { stdout, stderr, code } = await enqueue(() => runNode(args, { remote }));
+
+  if (code !== 0) {
+    throw new Error(`Wrangler 執行失敗（代碼 ${code}）：${(stderr || stdout).trim().slice(0, 500)}`);
+  }
+}
+
+/**
  * @param {string[]} args
  * @param {{ remote?: boolean }} [options] 遠端操作需要保留 Wrangler 的登入憑證，見 buildEnv()
  * @returns {Promise<{ stdout: string, stderr: string, code: number }>}

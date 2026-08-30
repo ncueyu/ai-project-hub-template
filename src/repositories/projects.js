@@ -369,7 +369,15 @@ export async function setPrimaryProject(db, id, now) {
 }
 
 /**
- * 只刪除 Hub 的 Metadata。不觸碰 Worker、Repository、Deployment 或 R2 物件。
+ * 只刪除 Hub 的 Metadata。不觸碰 Worker、Repository 或 Deployment。
+ *
+ * **已知缺口（2026-08-30，縮圖改存 D1 之後才出現）**：這裡也不會刪掉該專案的
+ * 縮圖位元組。`thumbnail_blobs`／`thumbnail_chunks` 是以 object_key 為主鍵、
+ * 沒有指向 `projects` 的外鍵，所以刪掉專案之後那張圖會留在資料庫裡沒有人指向它。
+ * 影響是慢慢吃掉 D1 的配額（免費方案單一資料庫 500 MB），而且前端完全看不出來。
+ * 縮圖上限 1 MB，要累積到有感需要刪掉數百個帶圖的專案，因此不緊急，
+ * 但**這是一個真的洩漏，不是設計**。修法：在這裡沿用
+ * `parseOwnThumbnailKey()` 判斷是不是自己存的縮圖，是的話一併刪掉。
  *
  * @param {D1Database} db
  * @param {number} id

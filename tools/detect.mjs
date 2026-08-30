@@ -12,6 +12,8 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
+import { detectLinkFolder } from "./link-detect.mjs";
+
 /** 依判斷優先序排列。前面的條件成立就不再往下看。 */
 export const PROJECT_KINDS = Object.freeze([
   "worker",
@@ -21,6 +23,7 @@ export const PROJECT_KINDS = Object.freeze([
   "vite",
   "node-api",
   "static",
+  "link",
   "unknown",
 ]);
 
@@ -388,6 +391,25 @@ export function detectProject(dir) {
     if (!hasBuildScript) {
       return result("static");
     }
+  }
+
+  /*
+   * 7. 外部連結專案：資料夾裡沒有網頁，只有一個寫著網址的文字檔。
+   *
+   * **放在最後、緊接在 unknown 之前**是刻意的。這個判斷只把原本會被判成
+   * "unknown" 的資料夾接走，因此不可能改變任何既有專案的判定結果——
+   * 上面每一條都已經先 return 了。
+   *
+   * 反過來（放在最前面）會很危險：一個正常的靜態專案如果剛好也放了一個
+   * 寫著網址的 readme.md，就會被判成外部連結，`hub ship` 於是拒絕部署一個
+   * 本來部署得起來的專案。
+   */
+  const link = detectLinkFolder(dir);
+
+  if (link.isLink) {
+    evidence.push(`檔案 ${link.source}（內含網址，且資料夾裡沒有網頁檔案）`);
+
+    return result("link");
   }
 
   return result("unknown");
