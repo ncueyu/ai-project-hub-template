@@ -8,6 +8,24 @@
  */
 
 :root {
+  /*
+   * 字級下限與頁尾字級（2026-08-31 使用者裁定）。
+   *
+   *   --font-size-min    其餘地方的下限。原本散落 13px／12px／0.78rem 之類的
+   *                      小字，一律拉到這個值。
+   *   --font-size-footer 頁尾版權宣告。刻意比下限再小一點——它是全站最不需要
+   *                      被讀到的一行，但兩邊（展示中心／教材）必須一致，
+   *                      而原本一邊 14.4px、一邊 12px。
+   *
+   * **站頭那排（.nav-link、.brand-mark）不受這兩個值管**，維持原樣：
+   * 使用者裁定上排保持原來的大小。
+   *
+   * 用變數而不是各處寫死，是因為這個值還會再調——寫死的話下次要重新盤點
+   * 三十幾個地方，而漏掉的那幾個不會有人發現。
+   */
+  --font-size-min: 0.875rem;
+  --font-size-footer: 0.8125rem;
+
   --color-primary: #1d1d1f;
   --color-on-primary: #ffffff;
   --color-secondary: #515154;
@@ -568,7 +586,7 @@ button:focus-visible {
   gap: 8px;
   margin: 0 0 12px;
   color: var(--color-accent);
-  font-size: 11px;
+  font-size: var(--font-size-min);
   font-weight: 600;
   letter-spacing: 0.1em;
 }
@@ -631,7 +649,7 @@ h1 span {
   border: var(--width-button-border) solid transparent;
   border-radius: var(--radius-button);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--font-size-min);
   font-weight: 600;
   text-decoration: none;
   transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease;
@@ -686,7 +704,7 @@ h1 span {
 
 .system-card-heading {
   color: var(--color-secondary);
-  font-size: 11px;
+  font-size: var(--font-size-min);
   font-weight: 600;
   letter-spacing: 0.07em;
 }
@@ -698,7 +716,7 @@ h1 span {
   padding: 4px 8px;
   border-radius: 999px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--font-size-min);
   font-weight: 600;
   letter-spacing: 0.04em;
 }
@@ -726,12 +744,12 @@ h1 span {
 
 .metric-label {
   color: var(--color-secondary);
-  font-size: 11px;
+  font-size: var(--font-size-min);
 }
 
 .metric-note {
   color: var(--color-subtle-neutral);
-  font-size: 10px;
+  font-size: var(--font-size-min);
 }
 
 .system-divider {
@@ -744,7 +762,7 @@ h1 span {
   padding-block: 6px;
   color: var(--color-secondary);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--font-size-min);
 }
 
 .text-success { color: var(--color-success); }
@@ -777,7 +795,7 @@ h1 span {
 .result-count {
   padding-bottom: 4px;
   color: var(--color-secondary);
-  font-size: 11px;
+  font-size: var(--font-size-min);
 }
 
 .empty-state {
@@ -887,7 +905,7 @@ h1 span {
 .module-code {
   color: var(--color-accent);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--font-size-min);
   font-weight: 600;
 }
 
@@ -913,7 +931,7 @@ h1 span {
   padding-block: 28px 32px;
   border-top: 1px solid var(--color-border);
   color: var(--color-secondary);
-  font-size: 0.9rem;
+  font-size: var(--font-size-footer);
 }
 
 .site-footer a {
@@ -960,7 +978,7 @@ h1 span {
   border-radius: 999px;
   background: var(--color-surface-warm);
   color: var(--color-warning-strong);
-  font-size: 0.82rem;
+  font-size: var(--font-size-footer);
   font-weight: 600;
 }
 
@@ -1043,7 +1061,7 @@ h1 span {
 
 .module-status {
   color: var(--color-secondary);
-  font-size: 10px;
+  font-size: var(--font-size-min);
 }
 
 @media (max-width: 800px) {
