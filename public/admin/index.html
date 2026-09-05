@@ -480,11 +480,15 @@
             <p class="field-error" id="project-visibility-error" hidden></p>
 
             <div class="visibility-status" role="note">
-              <p><strong>目前這個設定只控制「展示中心要不要列出這個專案」。</strong></p>
+              <p><strong>改完按儲存就生效，不需要重新部署</strong>（最慢約 30 秒）。</p>
               <p>
-                專案本身是獨立的網站。要讓「需要密碼」「私人」「停用」真正擋住訪客，
-                必須在部署專案時把權限檢查一起裝上去——這個自動化功能還在製作中。
-                在那之前，知道網址的人仍然可以直接開啟專案。
+                由這裡部署上線的專案（跟 AI 說「部署 XXX」的那些），會自己去查
+                目前的權限，所以五種狀態都真的擋得住知道網址的人。
+              </p>
+              <p>
+                <strong>但「已經在別處上線、只是加進來的連結」不算</strong>——
+                例如 Google 協作平台或別的服務做的網站。那些網站不在我們手上，
+                這裡的設定只能決定展示中心要不要列出它。
               </p>
             </div>
 
@@ -516,9 +520,7 @@
                 <span class="visibility-note">
                   <strong>會</strong>出現在展示中心，並標記「需要密碼」。
                   名稱、說明、縮圖與分類所有人都看得到，內容要輸入密碼才能看。
-                  <em>改成這個狀態之後，<strong>要重新部署那個專案才會生效</strong>——
-                  密碼是在部署當下注入的。跟 AI 說「重新部署 XXX」即可。
-                  在重新部署之前，知道網址的人仍然打得開。
+                  <em>記得下面要真的設一組密碼，不然沒有人進得去。
                   連名稱都不想被看到請改選「私人」。</em>
                 </span>
               </span>
@@ -529,8 +531,9 @@
               <span>
                 <strong>私人</strong>
                 <span class="visibility-note">
-                  不會出現在展示中心。設計上只有你能開啟。
-                  <em>目前只做到「不列出」，知道網址的人仍然打得開。</em>
+                  不會出現在展示中心，知道網址的人也打不開（會看到「找不到」）。
+                  <em>新部署的專案一律先是私人，這是刻意的：忘記設定的結果
+                  應該是沒人看得到，不是全世界都看得到。</em>
                 </span>
               </span>
             </label>
@@ -540,8 +543,8 @@
               <span>
                 <strong>停用</strong>
                 <span class="visibility-note">
-                  不會出現在展示中心。設計上所有人都無法開啟，資料仍保留。
-                  <em>目前只做到「不列出」，尚未真正關閉專案。</em>
+                  不會出現在展示中心，所有人都無法開啟，資料仍保留。
+                  <em>網站還在線上，只是暫時關起來，改回公開就又打得開了。</em>
                 </span>
               </span>
             </label>
@@ -556,9 +559,8 @@
                 aria-describedby="project-password-hint project-password-error" />
               <p class="field-hint" id="project-password-hint">至少 8 個字元。留空不會變更現有密碼。</p>
               <p class="field-hint">
-                <strong>改完密碼要重新部署那個專案才會生效。</strong>
-                密碼是在部署當下注入到專案裡的，不像站名或版面那樣存好就立刻生效。
-                跟 AI 說「重新部署 XXX」就可以。
+                <strong>改完按「儲存密碼」就生效</strong>（最慢約 30 秒），
+                跟站名、版面一樣，不需要重新部署。
               </p>
               <p class="field-error" id="project-password-error" hidden></p>
             </div>

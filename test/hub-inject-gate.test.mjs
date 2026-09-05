@@ -8,20 +8,25 @@ import { pathToFileURL } from "node:url";
 import {
   GATE_DIR_NAME,
   GATE_ENTRY_FILENAME,
+  HUB_DB_BINDING,
+  ensureHubDbBinding,
   generateSigningKey,
   injectGate,
   isOwnGateAlreadyInjected,
-  needsGateInjection,
+  readHubDatabase,
   renderGateEntry,
 } from "../tools/inject-gate.mjs";
+import { hasRemoteDatabase, readWranglerConfig } from "../tools/config.mjs";
 
-test("needsGateInjection matches the existing requiresAccessGate rule exactly", () => {
-  assert.equal(needsGateInjection("public"), false);
-  assert.equal(needsGateInjection("unlisted"), false);
-  assert.equal(needsGateInjection("password"), true);
-  assert.equal(needsGateInjection("private"), true);
-  assert.equal(needsGateInjection("disabled"), true);
-});
+/*
+ * `needsGateInjection` 的測試已於 2026-09-04 移除，連同那個函式本身。
+ * 它的作用是「只有受保護的權限才注入閘道」，而那正是「後台改成公開之後
+ * 線上仍然 404、重新部署也修不好」的成因。現在一律注入，見
+ * `tools/ship.mjs` 注入那一段的說明。
+ */
+
+/** 測試用的假資料庫設定，不去讀 Hub 真正的 wrangler.jsonc。 */
+const TEST_DB = { databaseName: "test-db", databaseId: "11111111-2222-3333-4444-555555555555" };
 
 test("generateSigningKey produces a long, unique, hex string every time", () => {
   const a = generateSigningKey();
@@ -84,7 +89,7 @@ function makeTargetProject(wranglerBody) {
 test("injectGate preserves every existing comment verbatim, only adding the two required fields", () => {
   const dir = makeTargetProject();
 
-  injectGate(dir, { projectId: 42, visibility: "private", policyVersion: 1, projectName: "電阻識別測驗" });
+  injectGate(dir, { projectId: 42, visibility: "private", policyVersion: 1, projectName: "電阻識別測驗", database: TEST_DB });
 
   const text = readFileSync(join(dir, "wrangler.jsonc"), "utf8");
 
@@ -105,7 +110,7 @@ test("injectGate preserves every existing comment verbatim, only adding the two 
 test("injectGate's result is valid JSONC that Wrangler could actually parse", () => {
   const dir = makeTargetProject();
 
-  injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t" });
+  injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t", database: TEST_DB });
 
   const text = readFileSync(join(dir, "wrangler.jsonc"), "utf8");
   const withoutComments = text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
@@ -120,11 +125,11 @@ test("injectGate's result is valid JSONC that Wrangler could actually parse", ()
 test("injectGate copies the whole self-contained access-gate directory", () => {
   const dir = makeTargetProject();
 
-  injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t" });
+  injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t", database: TEST_DB });
 
   const copied = readdirSync(join(dir, GATE_DIR_NAME)).sort();
 
-  assert.deepEqual(copied, ["index.js", "password.js", "protected-worker.js", "session.js"]);
+  assert.deepEqual(copied, ["index.js", "password.js", "policy-lookup.js", "protected-worker.js", "session.js"]);
   assert.ok(readFileSync(join(dir, GATE_ENTRY_FILENAME), "utf8").includes("createProtectedWorker"));
 });
 
@@ -139,7 +144,7 @@ test("injectGate refuses a project that already has its own main, and touches no
   const before = readFileSync(join(dir, "wrangler.jsonc"), "utf8");
 
   assert.throws(
-    () => injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t" }),
+    () => injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t", database: TEST_DB }),
     /main/,
   );
 
@@ -164,7 +169,7 @@ test("injectGate does not mistake a comment that merely mentions \"main\" for a 
 `);
 
   assert.doesNotThrow(() =>
-    injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t" }),
+    injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t", database: TEST_DB }),
   );
 
   const text = readFileSync(join(dir, "wrangler.jsonc"), "utf8");
@@ -184,7 +189,7 @@ test("injectGate does not mistake a comment mentioning binding/run_worker_first 
 `);
 
   assert.doesNotThrow(() =>
-    injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t" }),
+    injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t", database: TEST_DB }),
   );
 });
 
@@ -201,7 +206,7 @@ test("injectGate refuses (rather than silently double-inject) a project that alr
 `);
 
   assert.throws(
-    () => injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t" }),
+    () => injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t", database: TEST_DB }),
     /binding.*run_worker_first|已經有/i,
   );
 });
@@ -213,13 +218,13 @@ test("injectGate throws (does not silently skip) when wrangler.jsonc has no asse
 }
 `);
 
-  assert.throws(() => injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t" }));
+  assert.throws(() => injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t", database: TEST_DB }));
 });
 
 test("injectGate throws when the target has no wrangler.jsonc at all", () => {
   const dir = mkdtempSync(join(tmpdir(), "inject-gate-empty-"));
 
-  assert.throws(() => injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t" }));
+  assert.throws(() => injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t", database: TEST_DB }));
 });
 
 // ── isOwnGateAlreadyInjected：分辨「自己上次注入的殘留」與「別人的 Worker 專案」 ──
@@ -227,7 +232,7 @@ test("injectGate throws when the target has no wrangler.jsonc at all", () => {
 test("isOwnGateAlreadyInjected returns true when all three of its own signals are present", () => {
   const dir = makeTargetProject();
 
-  injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t" });
+  injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t", database: TEST_DB });
 
   assert.equal(isOwnGateAlreadyInjected(dir), true);
 });
@@ -283,7 +288,7 @@ test("isOwnGateAlreadyInjected returns false for an ordinary project with none o
 test("end to end: the injected worker actually blocks an unauthenticated visitor from a private project", async () => {
   const dir = makeTargetProject();
 
-  injectGate(dir, { projectId: 42, visibility: "private", policyVersion: 1, projectName: "電阻識別測驗" });
+  injectGate(dir, { projectId: 42, visibility: "private", policyVersion: 1, projectName: "電阻識別測驗", database: TEST_DB });
 
   // 動態載入剛剛產生的進入點檔案，模擬 Cloudflare 執行這個 Worker。
   // 用 pathToFileURL 而不是手拼字串——Windows 的磁碟機代號（例如 C:\）
@@ -312,4 +317,143 @@ test("end to end: the injected worker actually blocks an unauthenticated visitor
 
   assert.equal(response.status, 404, "private 專案在沒有管理者身分時必須一律拒絕");
   assert.equal(assetCalls.length, 0, "被拒絕的請求不該碰到任何靜態資源");
+});
+
+// ── D1 綁定：權限即時生效的前提（2026-09-04） ──
+
+test("injectGate 會寫入 Hub 的 D1 綁定，否則閘道查不到權限", () => {
+  const dir = makeTargetProject();
+
+  injectGate(dir, { projectId: 42, visibility: "private", policyVersion: 1, projectName: "t", database: TEST_DB });
+
+  const text = readFileSync(join(dir, "wrangler.jsonc"), "utf8");
+  const parsed = JSON.parse(text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1"));
+  const entry = parsed.d1_databases?.find((row) => row.binding === HUB_DB_BINDING);
+
+  assert.ok(entry, `應該有 ${HUB_DB_BINDING} 綁定`);
+  assert.equal(entry.database_name, TEST_DB.databaseName);
+  assert.equal(entry.database_id, TEST_DB.databaseId);
+});
+
+test("綁定名稱不叫 DB——會跟使用者專案自己的資料庫撞名", () => {
+  assert.equal(HUB_DB_BINDING, "HUB_DB");
+});
+
+test("產生的進入點會把 env.HUB_DB 接進即時查詢", () => {
+  const source = renderGateEntry({ projectId: 7, visibility: "private", policyVersion: 1, projectName: "t" });
+
+  assert.match(source, /import \{ createPolicyLookup \} from "\.\/access-gate\/policy-lookup\.js"/);
+  assert.match(source, /resolvePolicy: createPolicyLookup\(\{ db: env\.HUB_DB, projectId: PROJECT_ID \}\)/);
+
+  // 與 PROJECT_PASSWORD_HASH 同理：env 只有進了 fetch() 才存在。
+  assert.ok(source.indexOf("env.HUB_DB, projectId") > source.indexOf("fetch(request, env, ctx)"));
+});
+
+test("ensureHubDbBinding 補上舊專案缺的綁定，且可以重複執行", () => {
+  const dir = makeTargetProject();
+
+  // 先注入一份「舊版」的閘道：有 main、有 assets 補丁，但沒有 d1_databases。
+  injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t", database: TEST_DB });
+
+  const withBinding = readFileSync(join(dir, "wrangler.jsonc"), "utf8");
+  const legacy = withBinding.replace(/\t"d1_databases": \[[\s\S]*?\t\],\n/, "");
+
+  assert.ok(!legacy.includes("d1_databases"), "測試前提：這份設定沒有 d1_databases");
+  writeFileSync(join(dir, "wrangler.jsonc"), legacy);
+
+  assert.equal(ensureHubDbBinding(dir, TEST_DB), true, "第一次應該真的補上");
+  assert.equal(ensureHubDbBinding(dir, TEST_DB), false, "第二次應該什麼都不做");
+
+  const text = readFileSync(join(dir, "wrangler.jsonc"), "utf8");
+
+  assert.match(text, /"binding":\s*"HUB_DB"/);
+  assert.match(text, /"main":\s*"\.\/hub-gate-entry\.js"/, "不該動到既有欄位");
+});
+
+test("專案自己已經有 d1_databases 時停下來說清楚，不自動合併陣列", () => {
+  const dir = makeTargetProject(`{
+	"name": "has-own-db",
+	"compatibility_date": "2026-08-08",
+	"d1_databases": [
+		{ "binding": "MY_DB", "database_name": "teacher-notes", "database_id": "aaaa" }
+	],
+	"assets": {
+		"directory": "./public/"
+	}
+}
+`);
+
+  assert.throws(
+    () => injectGate(dir, { projectId: 1, visibility: "private", policyVersion: 1, projectName: "t", database: TEST_DB }),
+    /HUB_DB/,
+    "錯誤訊息要指名缺的是哪個綁定，讓使用者知道要手動加什麼",
+  );
+});
+
+test("還沒建立線上資料庫時停下來，並指名要跑哪一道指令", () => {
+  /*
+   * 剛下載範本、還沒跑 hub init 時，database_id 是佔位值（前 8 碼全是 0）。
+   * 把它寫進使用者的專案設定檔，wrangler deploy 會失敗在一個跟真正原因
+   * 無關的訊息上——他會以為是自己的網頁壞了。
+   *
+   * 這裡用假設定檔測，不改真的 wrangler.jsonc。
+   */
+  const placeholder = { d1_databases: [{ database_name: "x", database_id: "00000000-0000-0000-0000-000000000000" }] };
+
+  assert.equal(hasRemoteDatabase(placeholder), false, "佔位值必須被認出來");
+  assert.equal(hasRemoteDatabase(readWranglerConfig()), true, "本專案已經有真的資料庫");
+});
+
+test("readHubDatabase 讀得到本專案自己的 D1 設定", () => {
+  // 綁到真實設定檔的唯一一條測試：寫死名稱與 id 會讓別人照教材建自己一套時
+  // 安靜地綁到不存在的資料庫，所以要確認這條讀取路徑真的通。
+  const database = readHubDatabase();
+
+  assert.ok(database.databaseName.length > 0);
+  assert.match(database.databaseId, /^[0-9a-f-]{36}$/i);
+});
+
+test("端到端：資料庫說 public，檔案裡烙的是 private —— 訪客應該進得去", async () => {
+  const dir = makeTargetProject();
+
+  injectGate(dir, { projectId: 42, visibility: "private", policyVersion: 1, projectName: "t", database: TEST_DB });
+
+  const entryUrl = pathToFileURL(join(dir, "hub-gate-entry.js"));
+
+  entryUrl.search = `?t=${Date.now()}-live`;
+
+  const mod = await import(entryUrl.href);
+  const assetCalls = [];
+
+  const env = {
+    SESSION_SIGNING_KEY: "end-to-end-test-signing-key-0123456789",
+    ASSETS: {
+      async fetch(request) {
+        assetCalls.push(new URL(request.url).pathname);
+        return new Response("SITE CONTENT");
+      },
+    },
+    // 使用者在後台把它改成公開了，但沒有重新部署。
+    HUB_DB: {
+      prepare() {
+        return {
+          bind() {
+            return {
+              async first() {
+                return { visibility: "public", policy_version: 1, password_hash: null };
+              },
+            };
+          },
+        };
+      },
+    },
+  };
+
+  const response = await mod.default.fetch(new Request("https://example.test/"), env, {
+    waitUntil() {},
+    passThroughOnException() {},
+  });
+
+  assert.equal(response.status, 200, "這一條就是整個改動的存在理由：改權限不必重新部署");
+  assert.deepEqual(assetCalls, ["/"]);
 });

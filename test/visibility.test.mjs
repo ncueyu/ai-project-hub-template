@@ -58,28 +58,40 @@ test("public and unlisted are reachable with a direct link", () => {
   }
 });
 
-test("unlisted needs no access gate", () => {
+test("unlisted 不對訪客設限", () => {
   // 這是 TASK-2.8 的核心：unlisted 只是不列出，不是受保護。
-  // 若誤加閘道，靜態請求會從免費無上限變成計費請求。
   assert.equal(requiresAccessGate("unlisted"), false);
-  assert.deepEqual(runWorkerFirstFor("unlisted"), []);
 });
 
-test("public needs no access gate either", () => {
+test("public 不對訪客設限", () => {
   assert.equal(requiresAccessGate("public"), false);
-  assert.deepEqual(runWorkerFirstFor("public"), []);
 });
 
-test("password, private and disabled all require a gate covering every path", () => {
+test("password、private、disabled 三者都要對訪客設限", () => {
   for (const state of ["password", "private", "disabled"]) {
     assert.equal(requiresAccessGate(state), true, state);
-    assert.deepEqual(runWorkerFirstFor(state), ["/*"], state);
   }
 });
 
-test("the gate covers all paths so sub-resources cannot bypass it", () => {
-  // 只保護 HTML 而不保護 /app.js 之類的子資源，等於沒有保護。
-  assert.deepEqual(runWorkerFirstFor("private"), ["/*"]);
+test("run_worker_first 一律涵蓋所有路徑，與 visibility 無關", () => {
+  /*
+   * 2026-09-04 改。這裡原本斷言 public／unlisted 回 `[]`（靜態請求免費、
+   * 無上限），只有受保護的狀態回 `["/*"]`。
+   *
+   * 那個最佳化的前提是「權限烙印在部署當下」，而那正是 bug 的來源：
+   * 使用者在後台改成公開之後線上仍然是 404，重新部署也修不好。權限改成
+   * 即時查詢之後，Worker 一定要跑到才查得到，所以設定不能再看 visibility。
+   *
+   * 也是安全需求：只讓受保護狀態經過 Worker 的話，私人專案的 CSS／JS／
+   * 圖片就有一條繞過檢查的路徑——而設定檔在部署當下就固定了，權限卻隨時
+   * 會變。
+   */
+  for (const state of VISIBILITY_STATES) {
+    assert.deepEqual(runWorkerFirstFor(state), ["/*"], state);
+  }
+
+  // 刻意不收參數：留一個被忽略的參數，讀的人會以為它還有作用。
+  assert.equal(runWorkerFirstFor.length, 0);
 });
 
 test("listed and directly reachable are independent axes", () => {

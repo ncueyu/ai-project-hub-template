@@ -27,7 +27,8 @@ import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { requiresAccessGate, runWorkerFirstFor } from "../src/visibility.js";
+import { runWorkerFirstFor } from "../src/visibility.js";
+import { hasRemoteDatabase, readWranglerConfig } from "./config.mjs";
 
 /** `src/access-gate/` 的實際位置，複製時的來源。 */
 const ACCESS_GATE_SOURCE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "access-gate");
@@ -37,6 +38,15 @@ export const GATE_DIR_NAME = "access-gate";
 export const GATE_ENTRY_FILENAME = "hub-gate-entry.js";
 
 /**
+ * 專案 Worker 用來查 Hub 資料庫的綁定名稱。
+ *
+ * 刻意不叫 `DB`：Hub 自己的程式碼慣例是 `env.DB`，而使用者的專案日後很可能
+ * 也會有自己的資料庫。撞名的後果是兩個資料庫在同一個 `env` 上互相蓋掉，
+ * 而症狀會出現在完全無關的地方，很難查。
+ */
+export const HUB_DB_BINDING = "HUB_DB";
+
+/**
  * `renderGateEntry()` 產生的檔案開頭固定寫死的標記註解。獨立抽成常數，
  * 讓 `renderGateEntry()`（產生端）與 `isOwnGateAlreadyInjected()`（偵測端）
  * 共用同一份字面值——避免兩處字串各自維護，日後改一邊忘了改另一邊。
@@ -44,14 +54,46 @@ export const GATE_ENTRY_FILENAME = "hub-gate-entry.js";
 export const GATE_ENTRY_MARKER = "// 由 `hub ship` 自動產生，請勿手動編輯——下次部署會被覆寫。";
 
 /**
- * 這個 visibility 需不需要注入閘道。直接重用 `src/visibility.js` 既有的
- * 判斷——「哪些狀態需要閘道」只該有一個答案，不能在這裡另外定義一次。
+ * 讀出 Hub 自己的 D1 資料庫，要寫進目標專案的設定檔。
  *
- * @param {string} visibility
- * @returns {boolean}
+ * 從 `wrangler.jsonc` 讀、不寫死：別人照著教材建自己的一套時，資料庫名稱與
+ * id 都不一樣，寫死的話會安靜地綁到一個不存在的資料庫上——閘道查不到權限、
+ * 回退到烙印值，看起來完全正常，只是權限不會即時生效。
+ *
+ * `database_id` 會被寫進使用者的專案 repo。那是資料庫的識別碼、不是憑證
+ * （沒有 Cloudflare 帳號的授權，光有 id 動不了任何東西），而 `hub github`
+ * 建立的 repo 一律 private。教材裡有寫明這件事。
+ *
+ * @returns {{ databaseName: string, databaseId: string }}
  */
-export function needsGateInjection(visibility) {
-  return requiresAccessGate(visibility);
+export function readHubDatabase() {
+  const config = readWranglerConfig();
+  const entry = config?.d1_databases?.[0];
+  const databaseName = entry?.database_name;
+  const databaseId = entry?.database_id;
+
+  /*
+   * 剛下載範本、還沒建立遠端資料庫時，`database_id` 是階段一沿用的佔位
+   * UUID（前 8 碼全是 0）。把那個值寫進使用者的專案設定檔，`wrangler deploy`
+   * 會失敗在一個跟真正原因無關的錯誤訊息上——他會以為是自己的網頁有問題。
+   * 在這裡就停下來，並直接說要跑哪一道指令。
+   */
+  if (!hasRemoteDatabase(config)) {
+    throw new Error(
+      "還沒有建立線上資料庫（wrangler.jsonc 的 database_id 仍是佔位值），\n"
+        + "專案的權限閘道會沒有東西可以查。請先執行 node bin/hub.mjs init 建立資料庫，再部署專案。",
+    );
+  }
+
+  if (typeof databaseName !== "string" || databaseName.trim() === "") {
+    throw new Error("Hub 的 wrangler.jsonc 沒有 d1_databases[0].database_name，無法讓專案查詢權限。");
+  }
+
+  if (typeof databaseId !== "string" || databaseId.trim() === "") {
+    throw new Error("Hub 的 wrangler.jsonc 沒有 d1_databases[0].database_id，無法讓專案查詢權限。");
+  }
+
+  return { databaseName: databaseName.trim(), databaseId: databaseId.trim() };
 }
 
 /**
@@ -68,13 +110,23 @@ export function generateSigningKey() {
  * 產生進入點檔案的內容。
  *
  * `createProtectedWorker()` 故意放在 `fetch()` 裡面呼叫，不是在檔案頂層呼叫
- * 一次——`env`（含 `PROJECT_PASSWORD_HASH` 這個 Secret）只有進了 `fetch()`
- * 才存在，Workers 模組頂層看不到它。若在頂層呼叫，`passwordHash` 永遠是
- * `undefined`，密碼保護會悄悄失效而不會有任何錯誤訊息。
+ * 一次——`env`（含 `PROJECT_PASSWORD_HASH` 這個 Secret 與 `HUB_DB` 這個 D1
+ * 綁定）只有進了 `fetch()` 才存在，Workers 模組頂層看不到它。若在頂層呼叫，
+ * `passwordHash` 永遠是 `undefined`，密碼保護會悄悄失效而不會有任何錯誤訊息。
  *
  * `passwordHash` 一律接上 `env.PROJECT_PASSWORD_HASH`，不管這個專案是不是
- * `password` 狀態——`createProtectedWorker` 只有在 `visibility === "password"`
- * 時才會用到它，其餘狀態下這個欄位存在與否都沒有影響，不需要另外判斷。
+ * `password` 狀態——`createProtectedWorker` 只有在權限是 `password` 時才會
+ * 用到它，其餘狀態下這個欄位存在與否都沒有影響，不需要另外判斷。
+ *
+ * ## 檔案裡烙的 visibility 現在是「後援」，不是唯一答案（2026-09-04）
+ *
+ * `resolvePolicy` 會即時查 Hub 的資料庫，查得到就以它為準；查不到才用這裡
+ * 烙的值。所以使用者在後台改權限之後**不需要重新部署**。為什麼是回退到
+ * 烙印值而不是放行或封鎖，見 `protected-worker.js` 的 createProtectedWorker
+ * 檔頭。
+ *
+ * 每次呼叫 `createPolicyLookup()` 都是新的閉包，但快取在那個模組的模組層，
+ * 所以跨請求仍然共用——一次頁面載入的十幾個請求只會查一次資料庫。
  *
  * @param {{ projectId: number, visibility: string, policyVersion: number, projectName: string }} config
  * @returns {string}
@@ -85,20 +137,26 @@ export function renderGateEntry(config) {
 // 見 Hub 專案的 \`tools/inject-gate.mjs\` 檔頭說明。
 
 import { createProtectedWorker } from "./${GATE_DIR_NAME}/protected-worker.js";
+import { createPolicyLookup } from "./${GATE_DIR_NAME}/policy-lookup.js";
+
+/** 這個專案在 Hub 資料庫裡的 id。閘道用它查自己目前的權限。 */
+const PROJECT_ID = ${JSON.stringify(config.projectId)};
 
 /**
  * @param {Request} request
- * @param {{ ASSETS: { fetch(request: Request): Promise<Response> }, SESSION_SIGNING_KEY?: string, PROJECT_PASSWORD_HASH?: string }} env
+ * @param {{ ASSETS: { fetch(request: Request): Promise<Response> }, SESSION_SIGNING_KEY?: string, PROJECT_PASSWORD_HASH?: string, ${HUB_DB_BINDING}?: any }} env
  * @param {ExecutionContext} ctx
  */
 export default {
   fetch(request, env, ctx) {
     const worker = createProtectedWorker({
-      projectId: ${JSON.stringify(config.projectId)},
+      projectId: PROJECT_ID,
+      // 以下三個是部署當下的值，只在即時查詢失敗時才會被用到。
       visibility: ${JSON.stringify(config.visibility)},
       policyVersion: ${JSON.stringify(config.policyVersion)},
-      projectName: ${JSON.stringify(config.projectName)},
       passwordHash: env.PROJECT_PASSWORD_HASH,
+      projectName: ${JSON.stringify(config.projectName)},
+      resolvePolicy: createPolicyLookup({ db: env.${HUB_DB_BINDING}, projectId: PROJECT_ID }),
     });
 
     return worker.fetch(request, env, ctx);
@@ -148,6 +206,55 @@ function insertMainField(text, entryPath) {
   const indent = indentMatch ? indentMatch[1] : "\t";
 
   return `${text.slice(0, openBraceIndex + 1)}\n${indent}"main": ${JSON.stringify(entryPath)},${text.slice(openBraceIndex + 1)}`;
+}
+
+/**
+ * 在原始文字中插入 `d1_databases`，讓專案的 Worker 能查 Hub 的資料庫。
+ *
+ * 已經有 `HUB_DB` 這個綁定時原文回傳、不重複插入（重跑 `hub ship` 會走到
+ * 這裡）。已經有 `d1_databases` 但裡面沒有這個綁定時**拋錯**：那代表使用者
+ * 的專案自己接了資料庫，自動合併陣列有機會弄壞他的設定，寧可停下來講清楚
+ * 要他手動加一筆。
+ *
+ * @param {string} text
+ * @param {{ databaseName: string, databaseId: string }} database
+ * @returns {string}
+ */
+function insertD1Binding(text, database) {
+  const withoutComments = stripJsoncComments(text);
+
+  if (/"d1_databases"\s*:/.test(withoutComments)) {
+    if (new RegExp(`"binding"\\s*:\\s*"${HUB_DB_BINDING}"`).test(withoutComments)) {
+      return text;
+    }
+
+    throw new Error(
+      `wrangler.jsonc 已經有 d1_databases，但裡面沒有 ${HUB_DB_BINDING} 這個綁定。\n`
+        + `請手動在那個陣列裡加一筆 { "binding": "${HUB_DB_BINDING}", "database_name": "${database.databaseName}", "database_id": "${database.databaseId}" }，`
+        + "再重新執行。自動合併有機會弄壞你自己的資料庫設定，所以這裡不會替你改。",
+    );
+  }
+
+  const openBraceIndex = text.indexOf("{");
+
+  if (openBraceIndex === -1) {
+    throw new Error("wrangler.jsonc 格式異常：找不到起始的 {。");
+  }
+
+  const indentMatch = text.match(/\n([ \t]+)\S/);
+  const indent = indentMatch ? indentMatch[1] : "\t";
+
+  const block = [
+    `${indent}"d1_databases": [`,
+    `${indent}${indent}{`,
+    `${indent}${indent}${indent}"binding": ${JSON.stringify(HUB_DB_BINDING)},`,
+    `${indent}${indent}${indent}"database_name": ${JSON.stringify(database.databaseName)},`,
+    `${indent}${indent}${indent}"database_id": ${JSON.stringify(database.databaseId)}`,
+    `${indent}${indent}}`,
+    `${indent}],`,
+  ].join("\n");
+
+  return `${text.slice(0, openBraceIndex + 1)}\n${block}${text.slice(openBraceIndex + 1)}`;
 }
 
 /**
@@ -224,6 +331,18 @@ function assertPatchedJsoncIsValid(text, entryPath, runWorkerFirst) {
   if (JSON.stringify(parsed.assets?.run_worker_first) !== JSON.stringify(runWorkerFirst)) {
     throw new Error("注入後驗證失敗：assets.run_worker_first 沒有正確出現在結果中。");
   }
+
+  /*
+   * D1 綁定漏掉的話不會有任何錯誤訊息：閘道查不到權限、安靜地回退到烙印值，
+   * 網站看起來完全正常，只是在後台改權限不再即時生效——也就是這次要修的
+   * 那個 bug 原封不動地回來。所以這裡要驗，不能只驗 main。
+   */
+  const hasHubDb = Array.isArray(parsed.d1_databases)
+    && parsed.d1_databases.some((entry) => entry?.binding === HUB_DB_BINDING);
+
+  if (!hasHubDb) {
+    throw new Error(`注入後驗證失敗：d1_databases 裡沒有 ${HUB_DB_BINDING} 綁定，權限將無法即時生效。`);
+  }
 }
 
 /**
@@ -272,11 +391,15 @@ export function isOwnGateAlreadyInjected(dir) {
 }
 
 /**
+ * `database` 省略時由 `readHubDatabase()` 從 Hub 的 `wrangler.jsonc` 讀。
+ * 開放覆寫只為了讓測試不必依賴真實設定檔。
+ *
  * @typedef {{
  *   projectId: number,
  *   visibility: string,
  *   policyVersion: number,
  *   projectName: string,
+ *   database?: { databaseName: string, databaseId: string },
  * }} GateConfig
  */
 
@@ -292,46 +415,67 @@ export function isOwnGateAlreadyInjected(dir) {
  * @returns {{ signingKey: string, entryPath: string }}
  */
 /**
- * 讀出目前注入的進入點是**為哪一個 visibility 產生的**。
+ * 只重寫進入點檔案，不動 `wrangler.jsonc`。已經注入過的專案重新部署時走這裡。
  *
- * 2026-08-29 真實端到端測試抓到的 bug：專案第一次以 `private` 部署，之後在後台
- * 改成 `password` 再重新部署，`hub ship` 會走「已經注入過、不重複寫入」那條路，
- * 於是現場的 `hub-gate-entry.js` 裡仍然烙著 `visibility: "private"`。
- * 結果是密碼雜湊確實被注入成 Secret，但閘道根本不看它——訪客拿到 404 而不是
- * 密碼輸入頁。
+ * ## 為什麼是「無條件重寫」而不是「權限變了才重寫」（2026-09-04 改）
  *
- * 內容有保護（fail-safe 的方向是對的），但功能等於沒做出來，而且**完全沒有錯誤
- * 訊息**：每一步都顯示成功。單元測試抓不到，因為它需要「先以某個權限部署、
- * 再改權限、再部署」這個順序。
+ * 2026-08-29 這裡原本先用 `readInjectedVisibility()` 比對現場烙的權限，
+ * 不一樣才重寫。那是為了修「private 部署、改成 password、再部署，閘道仍然
+ * 用 private 邏輯」這個 bug。
  *
- * @param {string} dir
- * @returns {string | null} 讀不到時回 null
- */
-export function readInjectedVisibility(dir) {
-  const entryPath = join(dir, GATE_ENTRY_FILENAME);
-
-  if (!existsSync(entryPath)) return null;
-
-  // 進入點是本工具產生的，格式固定（見 renderGateEntry），所以用正規表示式讀
-  // 是安全的——不是在解析任意的使用者程式碼。
-  const match = readFileSync(entryPath, "utf8").match(/visibility:\s*"([a-z]+)"/);
-
-  return match ? match[1] : null;
-}
-
-/**
- * 只重寫進入點檔案，不動 `wrangler.jsonc`。
+ * 現在權限改成即時查詢（見 `renderGateEntry`），檔案裡烙的值只是後援，
+ * 那個比對就沒有意義了——而且比對本身也曾經是 bug 的一部分：`hub ship`
+ * 對不需要閘道的權限整段跳過，連比對都跑不到。無條件重寫沒有任何代價
+ * （寫一個小檔案），少一個判斷就少一條會漏掉的路徑。
  *
- * 為什麼不動設定檔：`runWorkerFirstFor()` 對所有需要閘道的狀態都回 `["/*"]`
- * （`src/visibility.js`），所以 private 與 password 之間切換時設定檔沒有差異。
- * 而 `injectGate()` 會因為 `main` 已存在而拒絕執行——那個保護是對的，不該為了
- * 這件事放寬它。
+ * 為什麼不動設定檔：`runWorkerFirstFor()` 現在對所有狀態都回 `["/*"]`，
+ * 切換權限時設定檔沒有差異。而 `injectGate()` 會因為 `main` 已存在而拒絕
+ * 執行——那個保護是對的，不該為了這件事放寬它。D1 綁定則由
+ * `ensureHubDbBinding()` 單獨補（舊專案第一次走到新版時需要）。
  *
  * @param {string} dir
  * @param {{ projectId: number, visibility: string, policyVersion: number, projectName: string }} config
  */
 export function rewriteGateEntry(dir, config) {
   writeFileSync(join(dir, GATE_ENTRY_FILENAME), renderGateEntry(config), "utf8");
+}
+
+/**
+ * 確保已經注入過閘道的專案，設定檔裡有 Hub 的 D1 綁定。
+ *
+ * 需要這個函式是因為**舊專案**：2026-09-04 之前注入的閘道沒有 D1 綁定，
+ * 而重新部署時走的是 `rewriteGateEntry()` 那條路（`injectGate()` 會因為
+ * `main` 已存在而拒絕）。沒有這一步的話，那些專案的進入點會呼叫
+ * `createPolicyLookup({ db: undefined })`——查詢安靜地回 null、回退到烙印值，
+ * 網站看起來正常，只是權限不會即時生效。沒有任何錯誤訊息。
+ *
+ * 已經有綁定時不做任何事（回 false），可以重複執行。
+ *
+ * @param {string} dir
+ * @param {{ databaseName: string, databaseId: string }} database
+ * @returns {boolean} 有沒有真的改動檔案
+ */
+export function ensureHubDbBinding(dir, database) {
+  const wranglerPath = join(dir, "wrangler.jsonc");
+
+  if (!existsSync(wranglerPath)) {
+    throw new Error(`找不到 ${wranglerPath}，無法設定資料庫綁定。`);
+  }
+
+  const originalText = readFileSync(wranglerPath, "utf8");
+  const patchedText = insertD1Binding(originalText, database);
+
+  if (patchedText === originalText) {
+    return false;
+  }
+
+  // 驗證方式與 injectGate 一致：不能只驗「字串插進去了」，要驗最終結果
+  // 真的是 Wrangler 讀得懂的 JSON。失敗就不寫入任何東西。
+  assertPatchedJsoncIsValid(patchedText, `./${GATE_ENTRY_FILENAME}`, runWorkerFirstFor());
+
+  writeFileSync(wranglerPath, patchedText, "utf8");
+
+  return true;
 }
 
 export function injectGate(dir, config) {
@@ -342,11 +486,13 @@ export function injectGate(dir, config) {
   }
 
   const entryPath = `./${GATE_ENTRY_FILENAME}`;
-  const runWorkerFirst = runWorkerFirstFor(config.visibility);
+  const runWorkerFirst = runWorkerFirstFor();
+  const database = config.database ?? readHubDatabase();
 
   const originalText = readFileSync(wranglerPath, "utf8");
   const withMain = insertMainField(originalText, entryPath);
-  const patchedText = patchAssetsBlock(withMain, runWorkerFirst);
+  const withDb = insertD1Binding(withMain, database);
+  const patchedText = patchAssetsBlock(withDb, runWorkerFirst);
 
   assertPatchedJsoncIsValid(patchedText, entryPath, runWorkerFirst);
 

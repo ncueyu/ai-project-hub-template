@@ -37,8 +37,16 @@
  * 權限是 `password` 但還沒設定密碼時**停止部署**，不當成「沒有保護」照樣送出去：
  * 那會做出一個宣稱受保護、實際上誰都打得開的網站，而使用者以為它鎖著。
  *
- * 附帶的時序限制：密碼是**部署當下**注入的，所以在後台改密碼之後必須重新部署
- * 才會生效。後台與 `AGENTS.md` 都有對應的提醒。
+ * ## 2026-09-04：權限與密碼都改成即時生效，不再需要重新部署
+ *
+ * 這裡原本寫著「密碼是部署當下注入的，所以在後台改密碼之後必須重新部署才會
+ * 生效」。那句話已經不成立。閘道現在直接查 Hub 的 D1（見
+ * `src/access-gate/policy-lookup.js`），權限、密碼、policy_version 三者都是
+ * 即時的；`--secrets-file` 送上去的雜湊只剩下「D1 連不上時的後援」這一個用途。
+ *
+ * 改動的起因是一個實際踩到的失敗：使用者在後台把專案改成公開，展示中心的
+ * 卡片出現了、點進去卻是 404，而重新部署也修不好（舊版對不需要閘道的權限
+ * 整段跳過注入）。細節見下方注入那一段的說明。
  */
 
 import { readFileSync } from "node:fs";
@@ -50,11 +58,11 @@ import { deployWithSecrets } from "./deploy.mjs";
 import { readPasswordHash } from "./policy-secret.mjs";
 import { publishToGithub, run } from "./github.mjs";
 import {
+  ensureHubDbBinding,
   generateSigningKey,
   injectGate,
   isOwnGateAlreadyInjected,
-  needsGateInjection,
-  readInjectedVisibility,
+  readHubDatabase,
   rewriteGateEntry,
 } from "./inject-gate.mjs";
 import { ensureProjectRegistered, registerDeployment } from "./register.mjs";
@@ -278,7 +286,7 @@ export async function shipProject(dir, options) {
       return stop(
         "read-password",
         "這個專案的權限是「需要密碼」，但還沒有設定密碼。\n"
-          + "請先到管理後台的「密碼設定」輸入密碼，再重新部署。\n"
+          + "請先到管理後台的「密碼設定」輸入密碼，再重新執行這道部署指令。\n"
           + "（沒有密碼就部署，會做出一個看起來有保護、其實誰都能開的網站。）",
       );
     }
@@ -291,105 +299,138 @@ export async function shipProject(dir, options) {
     });
   }
 
-  // ── 密碼閘道注入（僅需要時），並推送第二個 commit ──
+  /*
+   * ── 權限閘道注入（一律注入），並推送第二個 commit ──
+   *
+   * ## 為什麼從「只有需要保護時才注入」改成「一律注入」（2026-09-04）
+   *
+   * 原本這裡是 `if (needsGateInjection(registered.visibility))`，公開專案
+   * 整段跳過。那造成兩件事：
+   *
+   *   ① 公開專案沒有 Worker，也就沒有任何東西會去查它現在的權限。使用者
+   *      在後台把專案改成公開之後，線上仍然是舊的烙印權限（404），而且
+   *      **重新部署也修不好**——因為新權限是 public，這個判斷仍然是 false，
+   *      連 2026-08-29 加的「權限變了就重寫進入點」都跑不到。
+   *      2026-09-04 使用者在新電腦實測時就是撞到這個。
+   *
+   *   ② 判斷本身沒有安全上的必要性：`requiresAccessGate()` 說的是「這個
+   *      狀態要不要對訪客設限」，不是「要不要有能力設限」。而權限隨時會變，
+   *      設定檔卻是部署當下就固定的。
+   *
+   * 代價已與使用者確認：公開專案的靜態請求從免費無上限變成計入 Worker
+   * 每日額度（見 `src/visibility.js` 的 `runWorkerFirstFor()`）。
+   */
   /** @type {string | null} 有值時，部署時要連同這把金鑰一起上傳。 */
   let signingKeyForDeploy = null;
 
-  if (needsGateInjection(registered.visibility)) {
-    if (isContinuation) {
-      // 上一次已經成功注入過（`wrangler.jsonc`、`hub-gate-entry.js`、
-      // `access-gate/` 都在），再呼叫一次 `injectGate()` 只會撞上它自己
-      // 「main 已存在」的保護。上一次部署沒有成功完成，金鑰從未真正透過
-      // `--secrets-file` 上傳到 Cloudflare，不存在「相容性」問題，重新生
-      // 一把即可，不需要也不該重複 commit／push。
-      signingKeyForDeploy = generateSigningKey();
+  /** @type {{ databaseName: string, databaseId: string }} */
+  let hubDatabase;
 
-      /*
-       * 但有一種情況不能只是跳過：**權限在兩次部署之間改變了**。
-       *
-       * 進入點檔案裡烙著產生當下的 visibility（見 renderGateEntry）。專案第一次
-       * 以 private 部署、之後在後台改成 password 再重新部署時，這條路會讓現場
-       * 的閘道繼續用 private 的邏輯——密碼雜湊確實注入了，但閘道不看它，
-       * 訪客拿到 404 而不是密碼輸入頁。功能等於沒做出來，而且每一步都顯示成功。
-       *
-       * 2026-08-29 的真實端到端測試就是這樣抓到的；單元測試涵蓋不到，
-       * 因為它需要「先部署、改權限、再部署」這個順序。
-       */
-      const injectedVisibility = readInjectedVisibility(dir);
+  try {
+    hubDatabase = readHubDatabase();
+  } catch (error) {
+    return stop("inject-gate", error instanceof Error ? error.message : String(error));
+  }
 
-      if (injectedVisibility !== null && injectedVisibility !== registered.visibility) {
-        rewriteGateEntry(dir, {
-          projectId: registered.projectId,
-          visibility: registered.visibility,
-          policyVersion: GATE_POLICY_VERSION,
-          projectName: name,
-        });
+  if (isContinuation) {
+    // 上一次已經成功注入過（`wrangler.jsonc`、`hub-gate-entry.js`、
+    // `access-gate/` 都在），再呼叫一次 `injectGate()` 只會撞上它自己
+    // 「main 已存在」的保護。上一次部署沒有成功完成，金鑰從未真正透過
+    // `--secrets-file` 上傳到 Cloudflare，不存在「相容性」問題，重新生
+    // 一把即可，不需要也不該重複 commit／push。
+    signingKeyForDeploy = generateSigningKey();
 
-        const rewriteCommit = await commitGateChanges(
-          runCommand,
-          dir,
-          `hub ship: 權限改為 ${registered.visibility}，更新閘道`,
-        );
+    /*
+     * 進入點**無條件重寫**，不比對權限有沒有變（2026-09-04 改）。
+     *
+     * 原本這裡先用 `readInjectedVisibility()` 比對現場烙的權限、不一樣才
+     * 重寫。權限改成即時查詢之後，檔案裡烙的值只是後援，比對已經沒有意義；
+     * 而且比對本身也是 bug 的一部分（外層那個「不需要閘道就整段跳過」讓它
+     * 連跑到的機會都沒有）。重寫一個小檔案沒有成本，少一個判斷就少一條
+     * 會漏掉的路徑。
+     *
+     * `ensureHubDbBinding()` 是給**舊專案**的：2026-09-04 之前注入的閘道
+     * 沒有 D1 綁定，而這條路不會呼叫 `injectGate()`（會撞上 main 已存在的
+     * 保護），所以綁定要單獨補。沒補的話閘道查不到權限、安靜地回退到烙印
+     * 值——網站看起來正常，只是權限不會即時生效，且沒有任何錯誤訊息。
+     */
+    rewriteGateEntry(dir, {
+      projectId: registered.projectId,
+      visibility: registered.visibility,
+      policyVersion: GATE_POLICY_VERSION,
+      projectName: name,
+    });
 
-        if (!rewriteCommit.ok) {
-          return stop("commit-gate", rewriteCommit.detail);
-        }
+    let bindingAdded = false;
 
-        steps.push({
-          step: "inject-gate",
-          status: "ok",
-          detail: `權限已從 ${injectedVisibility} 改為 ${registered.visibility}，重新產生閘道進入點並推送。`,
-        });
-      } else {
-        steps.push({
-          step: "inject-gate",
-          status: "skipped",
-          detail: "偵測到先前已注入過閘道檔案且權限未變，不重複寫入；重新產生簽章金鑰供這次部署使用。",
-        });
-      }
-    } else {
-      let injected;
-
-      try {
-        injected = injectGate(dir, {
-          projectId: registered.projectId,
-          visibility: registered.visibility,
-          policyVersion: GATE_POLICY_VERSION,
-          projectName: name,
-        });
-      } catch (error) {
-        return stop("inject-gate", error instanceof Error ? error.message : String(error));
-      }
-
-      steps.push({ step: "inject-gate", status: "ok", detail: `已注入密碼閘道，權限：${registered.visibility}。` });
-
-      const addResult = await runCommand("git", ["add", "-A"], dir);
-
-      if (addResult.code !== 0) {
-        return stop("commit-gate", `git add 失敗：${addResult.stderr || addResult.stdout}`);
-      }
-
-      const commitResult = await runCommand(
-        "git",
-        ["commit", "-m", "hub ship: 注入密碼閘道"],
-        dir,
-      );
-
-      if (commitResult.code !== 0) {
-        return stop("commit-gate", `git commit 失敗：${commitResult.stderr || commitResult.stdout}`);
-      }
-
-      const pushResult = await runCommand("git", ["push"], dir);
-
-      if (pushResult.code !== 0) {
-        return stop("commit-gate", `git push 失敗：${pushResult.stderr || pushResult.stdout}`);
-      }
-
-      steps.push({ step: "commit-gate", status: "ok", detail: "已推送閘道設定（獨立的第二個 commit）。" });
-      signingKeyForDeploy = injected.signingKey;
+    try {
+      bindingAdded = ensureHubDbBinding(dir, hubDatabase);
+    } catch (error) {
+      return stop("inject-gate", error instanceof Error ? error.message : String(error));
     }
+
+    const rewriteCommit = await commitGateChanges(
+      runCommand,
+      dir,
+      `hub ship: 更新閘道（權限：${registered.visibility}）`,
+    );
+
+    if (!rewriteCommit.ok) {
+      return stop("commit-gate", rewriteCommit.detail);
+    }
+
+    steps.push({
+      step: "inject-gate",
+      status: "ok",
+      detail: bindingAdded
+        ? `已更新閘道進入點，並補上 Hub 資料庫綁定（舊版部署缺這一項，補上後權限才會即時生效）。目前權限：${registered.visibility}。`
+        : `已更新閘道進入點。目前權限：${registered.visibility}（權限改動不需要重新部署，這裡只是同步檔案）。`,
+    });
   } else {
-    steps.push({ step: "inject-gate", status: "skipped", detail: `${registered.visibility} 不需要閘道。` });
+    let injected;
+
+    try {
+      injected = injectGate(dir, {
+        projectId: registered.projectId,
+        visibility: registered.visibility,
+        policyVersion: GATE_POLICY_VERSION,
+        projectName: name,
+        database: hubDatabase,
+      });
+    } catch (error) {
+      return stop("inject-gate", error instanceof Error ? error.message : String(error));
+    }
+
+    steps.push({
+      step: "inject-gate",
+      status: "ok",
+      detail: `已注入權限閘道（含 Hub 資料庫綁定，之後在後台改權限會即時生效）。目前權限：${registered.visibility}。`,
+    });
+
+    const addResult = await runCommand("git", ["add", "-A"], dir);
+
+    if (addResult.code !== 0) {
+      return stop("commit-gate", `git add 失敗：${addResult.stderr || addResult.stdout}`);
+    }
+
+    const commitResult = await runCommand(
+      "git",
+      ["commit", "-m", "hub ship: 注入密碼閘道"],
+      dir,
+    );
+
+    if (commitResult.code !== 0) {
+      return stop("commit-gate", `git commit 失敗：${commitResult.stderr || commitResult.stdout}`);
+    }
+
+    const pushResult = await runCommand("git", ["push"], dir);
+
+    if (pushResult.code !== 0) {
+      return stop("commit-gate", `git push 失敗：${pushResult.stderr || pushResult.stdout}`);
+    }
+
+    steps.push({ step: "commit-gate", status: "ok", detail: "已推送閘道設定（獨立的第二個 commit）。" });
+    signingKeyForDeploy = injected.signingKey;
   }
 
   // ── 部署（簽章金鑰隨部署一起上傳，不用另外互動輸入） ──

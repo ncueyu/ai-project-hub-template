@@ -4,8 +4,24 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { injectGate } from "../tools/inject-gate.mjs";
-import { readInjectedVisibility } from "../tools/inject-gate.mjs";
+import { GATE_ENTRY_FILENAME, HUB_DB_BINDING, injectGate } from "../tools/inject-gate.mjs";
+
+/**
+ * 讀出現場的閘道進入點裡烙著哪一個權限。
+ *
+ * 2026-09-04 之前這是 `tools/inject-gate.mjs` 的匯出函式，用來決定「要不要
+ * 重寫進入點」。權限改成即時查詢之後那個判斷沒有意義了（進入點無條件重寫），
+ * 函式也就跟著移除；但測試仍然需要看檔案裡烙了什麼——那個值現在的用途是
+ * 「資料庫連不上時的後援」，寫錯了同樣會出事，只是症狀更難發現。
+ *
+ * @param {string} dir
+ * @returns {string | null}
+ */
+function readBakedVisibility(dir) {
+  const match = readFileSync(join(dir, GATE_ENTRY_FILENAME), "utf8").match(/visibility:\s*"([a-z]+)"/);
+
+  return match ? match[1] : null;
+}
 import { buildPasswordHashSql, readPasswordHash } from "../tools/policy-secret.mjs";
 import { parseDeployedUrl, shipProject } from "../tools/ship.mjs";
 
@@ -305,29 +321,48 @@ test("a new static project is registered private, gets a gate, and deploys with 
   assert.equal(registeredWith.version_ref, "abc123def456");
 });
 
-test("an existing public project is not gated, and deploys without a secrets file", async () => {
+test("公開專案也會注入閘道——不注入的話後台改權限永遠不會生效", async () => {
+  /*
+   * 2026-09-04 反轉。這條測試原本叫「an existing public project is not
+   * gated, and deploys without a secrets file」，斷言公開專案跳過注入、
+   * 只有一個 commit、部署不帶 secrets。
+   *
+   * 那個行為就是 bug 本身：公開專案沒有 Worker，就沒有任何東西會去查它
+   * 現在的權限。使用者把一個 private 專案在後台改成 public 之後，線上仍然
+   * 回 404，而且重新部署也修不好——因為新權限是 public，舊版的
+   * `needsGateInjection()` 仍然是 false，整段注入被跳過。
+   *
+   * 代價（公開專案的靜態請求開始計入 Worker 額度）已與使用者確認。
+   */
+  const dir = makeProject();
   const { calls, options } = makeShipOptions();
 
   options.ensureProjectRegistered = async () => ({ projectId: 7, visibility: "public", isNew: false });
   options.registerDeployment = async () => ({ projectId: 7, visibility: "public", isNew: false });
   options.fetch = async () => new Response("OK", { status: 200 });
 
-  const result = await shipProject(makeProject(), options);
+  const result = await shipProject(dir, options);
 
   assert.equal(result.ok, true, JSON.stringify(result.steps, null, 2));
   assert.equal(result.visibility, "public");
 
   const injectStep = result.steps.find((s) => s.step === "inject-gate");
 
-  assert.equal(injectStep.status, "skipped");
+  assert.equal(injectStep.status, "ok", "公開專案也要有閘道");
+
+  const wrangler = readFileSync(join(dir, "wrangler.jsonc"), "utf8");
+
+  assert.ok(wrangler.includes(HUB_DB_BINDING), "沒有資料庫綁定，閘道就查不到權限");
+  assert.match(wrangler, /"run_worker_first":\s*\["\/\*"\]/, "Worker 必須跑到才查得到權限");
+  assert.equal(readBakedVisibility(dir), "public", "後援值應該是部署當下的權限");
 
   const commitCalls = calls.filter((c) => c[0] === "git" && c[1] === "commit");
 
-  assert.equal(commitCalls.length, 1, "public 專案不需要第二個 commit");
+  assert.ok(commitCalls.length >= 2, "閘道檔案要有自己的 commit");
 
   const deployCall = calls.find((c) => c.includes("deploy"));
 
-  assert.equal(deployCall.includes("--secrets-file"), false);
+  assert.ok(deployCall.includes("--secrets-file"), "簽章金鑰要隨部署上傳");
 });
 
 // ── 縮圖（2026-08-30 接上，同日改存 D1）──────────────────────────
@@ -595,14 +630,17 @@ test("a directory left gated by a previous failed deploy is treated as a continu
 
   const injectStep = result.steps.find((s) => s.step === "inject-gate");
 
-  assert.equal(injectStep.status, "skipped", "偵測到自己上次的痕跡，不該重新呼叫 injectGate()");
+  assert.equal(injectStep.status, "ok");
+  assert.match(injectStep.detail, /已更新閘道進入點/, "不該重新呼叫 injectGate()，只重寫進入點");
 
-  // 不該重複 commit：只有程式碼推送本身那一次 commit，沒有第二次閘道 commit／push。
+  /*
+   * 2026-09-04 改：原本斷言「已經注入過就完全跳過，不再 commit／push」。
+   * 現在進入點無條件重寫（權限值只是後援，重寫一個小檔案沒有成本），
+   * 所以會多一次 commit。少一個「要不要重寫」的判斷，就少一條會漏掉的路徑。
+   */
   const commitCalls = calls.filter((c) => c[0] === "git" && c[1] === "commit");
-  const gatePushCalls = calls.filter((c) => c[0] === "git" && c[1] === "push");
 
-  assert.equal(commitCalls.length, 1, "已經注入過，不該再 commit 一次閘道設定");
-  assert.equal(gatePushCalls.length, 0, "已經注入過，不該再多推送一次");
+  assert.ok(commitCalls.length >= 2, "重寫進入點之後要推上去，否則 GitHub 與線上不一致");
 
   assert.equal(registeredWith.project_type, "static");
 
@@ -746,22 +784,23 @@ test("readPasswordHash 把空字串當成沒設定", async () => {
   assert.equal(await readPasswordHash(7, { executeSql: runReal }), "abc");
 });
 
-test("權限在兩次部署之間改變時，閘道進入點會被重新產生", async () => {
+test("重新部署時，進入點的後援權限會更新成目前的權限", async () => {
   /*
-   * 2026-08-29 真實端到端測試抓到的 bug 的回歸測試。
+   * 2026-08-29 真實端到端測試抓到的 bug 的回歸測試（2026-09-04 調整）。
    *
-   * 專案第一次以 private 部署，之後在後台改成 password 再重新部署時，
-   * ship 會走「已經注入過、不重複寫入」那條路，於是現場的 hub-gate-entry.js
-   * 裡仍烙著 visibility: "private"——密碼雜湊確實注入了，但閘道不看它，
-   * 訪客拿到 404 而不是密碼輸入頁。功能等於沒做出來，而且每一步都顯示成功。
+   * 原本的症狀：專案第一次以 private 部署、之後在後台改成 password 再重新
+   * 部署，ship 會走「已經注入過、不重複寫入」那條路，現場的 hub-gate-entry.js
+   * 裡仍烙著 private——密碼雜湊確實注入了，但閘道不看它。
    *
-   * 單元測試原本涵蓋不到，因為它需要「先部署、改權限、再部署」這個順序。
+   * 現在權限是即時查的，這個烙印值只是「資料庫連不上時的後援」。它仍然要
+   * 更新：後援值停在半年前的權限，等於在 D1 出問題的那一刻套用一個過期的
+   * 政策，而那正是最不該出錯的時候。
    */
   const dir = makeProject();
 
   // 先以 private 注入一次，模擬上一次部署的狀態
   injectGate(dir, { projectId: 9, visibility: "private", policyVersion: 1, projectName: "t" });
-  assert.equal(readInjectedVisibility(dir), "private");
+  assert.equal(readBakedVisibility(dir), "private");
 
   const { options } = makeShipOptions();
   options.ensureProjectRegistered = async () => ({ projectId: 9, visibility: "password", isNew: false });
@@ -772,20 +811,29 @@ test("權限在兩次部署之間改變時，閘道進入點會被重新產生",
   const result = await shipProject(dir, options);
 
   assert.equal(result.ok, true);
-  assert.equal(
-    readInjectedVisibility(dir),
-    "password",
-    "權限改了卻沒重寫進入點——閘道會繼續用舊權限的邏輯，密碼形同虛設",
-  );
+  assert.equal(readBakedVisibility(dir), "password", "後援值必須跟著更新");
 
   const gateStep = result.steps.find((step) => step.step === "inject-gate");
   assert.equal(gateStep.status, "ok");
-  assert.match(gateStep.detail, /權限已從 private 改為 password/);
 });
 
-test("權限沒變時維持原本的跳過行為，不做多餘的 commit", async () => {
+test("舊專案重新部署時會補上缺的資料庫綁定", async () => {
+  /*
+   * 2026-09-04 之前注入的閘道沒有 D1 綁定，而重新部署走的是「只重寫進入點」
+   * 那條路（injectGate 會因為 main 已存在而拒絕）。沒有這一步的話，那些專案
+   * 的進入點會拿到 undefined 的資料庫——查詢安靜地回 null、回退到烙印值，
+   * 網站看起來正常，只是權限不會即時生效。沒有任何錯誤訊息。
+   */
   const dir = makeProject();
+
   injectGate(dir, { projectId: 9, visibility: "private", policyVersion: 1, projectName: "t" });
+
+  // 把綁定拿掉，模擬舊版部署留下的設定檔
+  const wranglerPath = join(dir, "wrangler.jsonc");
+  const legacy = readFileSync(wranglerPath, "utf8").replace(/\t"d1_databases": \[[\s\S]*?\t\],\n/, "");
+
+  assert.ok(!legacy.includes(HUB_DB_BINDING), "測試前提：這份設定沒有綁定");
+  writeFileSync(wranglerPath, legacy);
 
   const { options } = makeShipOptions();
   options.ensureProjectRegistered = async () => ({ projectId: 9, visibility: "private", isNew: false });
@@ -794,6 +842,11 @@ test("權限沒變時維持原本的跳過行為，不做多餘的 commit", asyn
 
   const result = await shipProject(dir, options);
 
+  assert.equal(result.ok, true, JSON.stringify(result.steps, null, 2));
+  assert.ok(readFileSync(wranglerPath, "utf8").includes(HUB_DB_BINDING), "綁定應該被補上");
+
   const gateStep = result.steps.find((step) => step.step === "inject-gate");
-  assert.equal(gateStep.status, "skipped");
+
+  assert.equal(gateStep.status, "ok");
+  assert.match(gateStep.detail, /補上 Hub 資料庫綁定/, "補了東西就要說，不能靜默處理");
 });

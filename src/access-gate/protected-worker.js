@@ -6,7 +6,8 @@
  * 這段程式會由未來的 `hub deploy` 在部署時注入受保護專案，讓每個專案
  * 自己守自己的門（見主規格 RULE-002）。Hub 不做反向代理。
  *
- * 三種受保護狀態的對外行為：
+ * 五種狀態的對外行為（2026-09-04 起所有專案都注入這個 Worker，不只受保護的）：
+ *   - public／unlisted：直接放行。
  *   - password：未驗證時，網頁請求得到密碼頁，其他資源一律 404。
  *   - private ：非管理者一律 404。
  *   - disabled：所有人一律 404。
@@ -133,6 +134,10 @@ ${error}
 }
 
 /**
+ * @typedef {{ visibility: string, policyVersion: number, passwordHash: string | null }} ResolvedPolicy
+ */
+
+/**
  * @typedef {{
  *   projectId: number,
  *   visibility: string,
@@ -142,11 +147,32 @@ ${error}
  *   sessionSeconds?: number,
  *   secureCookie?: boolean,
  *   isAdmin?: (request: Request) => boolean | Promise<boolean>,
+ *   resolvePolicy?: () => Promise<ResolvedPolicy | null>,
  * }} ProtectedConfig
  */
 
 /**
  * 建立受保護專案的 Worker。
+ *
+ * ## 權限從哪裡來：即時查詢優先，烙印值當後援（2026-09-04）
+ *
+ * `config.visibility`／`policyVersion`／`passwordHash` 是**部署當下**烙進
+ * 進入點的值。只靠它們的話，使用者在管理後台把專案改成公開之後必須重新部署
+ * 才會生效——而後台其他設定（站名、版面、公開／私人在展示中心的顯示）全部
+ * 都是即時的，沒有人會預期權限是例外。實際發生過的後果：使用者在後台改成
+ * 公開、展示中心的卡片出現了，點進去卻是 404，他無法從畫面上看出原因。
+ *
+ * 所以 `config.resolvePolicy` 存在時，改以它回傳的即時值為準。
+ *
+ * **查不到時回退到烙印值，不是放行也不是封鎖。** 三種選擇的後果差很多：
+ *   - 查不到就放行 → 資料庫抖動一次，所有私人專案外洩。
+ *   - 查不到就封鎖 → 資料庫抖動一次，所有公開專案掛掉。
+ *   - 回退到烙印值 → 回到「部署當下的權限」，這是唯一兩邊都不失控的選擇。
+ * 一個以 private 部署的專案，在資料庫連不上時仍然是 private。
+ *
+ * **回退是整筆一起換，不是逐欄位補。** 即時查詢成功時，就算
+ * `password_hash` 是 NULL 也要照用——那代表使用者剛剛在後台把密碼刪掉了。
+ * 逐欄位 `??` 會讓被刪掉的密碼從烙印值裡復活。
  *
  * @param {ProtectedConfig} config
  */
@@ -162,22 +188,27 @@ export function createProtectedWorker(config) {
   async function fetch(request, env, runtime = {}) {
     const url = new URL(request.url);
 
+    // 一次請求只查一次，之後全部讀這個結果（見 createProtectedWorker 檔頭）。
+    const policy = await resolvePolicy();
+
     // 停用中的專案：任何人、任何路徑都一樣。
-    if (config.visibility === "disabled") {
+    if (policy.visibility === "disabled") {
       return notFound();
     }
 
     // 私人專案：只有通過管理者驗證的請求能進入。
     // 管理者判斷由部署時注入（正式環境預定使用 Cloudflare Access 的身分標頭）。
-    if (config.visibility === "private") {
+    if (policy.visibility === "private") {
       const isAdmin = config.isAdmin ? await config.isAdmin(request) : false;
 
       return isAdmin ? env.ASSETS.fetch(request) : notFound();
     }
 
-    if (config.visibility !== "password") {
-      // public 與 unlisted 不應該注入這個 Worker；真的被注入時直接放行，
-      // 以免設定失誤導致公開內容變成無法存取。
+    if (policy.visibility !== "password") {
+      // public 與 unlisted：直接放行。2026-09-04 起這是**正常路徑**而不是
+      // 「設定失誤時的保險」——所有專案一律注入這個 Worker，權限才能即時
+      // 生效（見 createProtectedWorker 檔頭）。代價是公開專案的靜態請求
+      // 從「免費無上限」變成計入 Worker 的每日請求額度。
       return env.ASSETS.fetch(request);
     }
 
@@ -208,13 +239,13 @@ export function createProtectedWorker(config) {
         return new Response(null, { status: 405, headers: { Allow: "GET, POST" } });
       }
 
-      return handleLogin(request, signingKey);
+      return handleLogin(request, signingKey, policy);
     }
 
     const gate = createAccessGate({
       signingKey,
       projectId: config.projectId,
-      policyVersion: config.policyVersion,
+      policyVersion: policy.policyVersion,
     });
 
     const result = await gate.check(request, { now: runtime.now });
@@ -232,8 +263,9 @@ export function createProtectedWorker(config) {
    *
    * @param {Request} request
    * @param {CryptoKey} signingKey
+   * @param {ResolvedPolicy} policy 這次請求解析出來的權限，見 createProtectedWorker 檔頭
    */
-  async function handleLogin(request, signingKey) {
+  async function handleLogin(request, signingKey, policy) {
     let password = "";
 
     try {
@@ -243,7 +275,7 @@ export function createProtectedWorker(config) {
       password = "";
     }
 
-    const hash = config.passwordHash;
+    const hash = policy.passwordHash;
     const ok = hash ? await verifyPassword(password, hash) : false;
 
     if (!ok) {
@@ -257,7 +289,7 @@ export function createProtectedWorker(config) {
     const now = Math.floor(Date.now() / 1000);
     const token = await issueSession(signingKey, {
       project_id: config.projectId,
-      policy_version: config.policyVersion,
+      policy_version: policy.policyVersion,
       expires_at: now + sessionSeconds,
     });
 
@@ -272,6 +304,33 @@ export function createProtectedWorker(config) {
         "Cache-Control": "no-store",
       },
     });
+  }
+
+  /**
+   * 取得這次請求該用的權限。即時查詢優先，失敗回退到烙印值——
+   * 為什麼是回退而不是放行或封鎖，見 createProtectedWorker 檔頭。
+   *
+   * @returns {Promise<ResolvedPolicy>}
+   */
+  async function resolvePolicy() {
+    /** @type {ResolvedPolicy} */
+    const baked = {
+      visibility: config.visibility,
+      policyVersion: config.policyVersion,
+      passwordHash: config.passwordHash ?? null,
+    };
+
+    if (!config.resolvePolicy) {
+      return baked;
+    }
+
+    // 即時查詢自己已經吞掉所有錯誤（見 policy-lookup.js），但這裡再包一層：
+    // 注入端若換成別的實作而它會拋錯，整個網站不該因此掛掉。
+    try {
+      return (await config.resolvePolicy()) ?? baked;
+    } catch {
+      return baked;
+    }
   }
 
   return { fetch };
