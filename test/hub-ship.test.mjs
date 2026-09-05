@@ -23,7 +23,27 @@ function readBakedVisibility(dir) {
   return match ? match[1] : null;
 }
 import { buildPasswordHashSql, readPasswordHash } from "../tools/policy-secret.mjs";
+import { hasRemoteDatabase } from "../tools/config.mjs";
 import { parseDeployedUrl, shipProject } from "../tools/ship.mjs";
+
+/*
+ * 空殼（剛下載的範本）還沒跑過 `node bin/hub.mjs init`，wrangler.jsonc 的
+ * database_id 是佔位值（前 8 碼全是 0）。下面標了 { skip: NO_HUB_DB } 的測試
+ * 需要一個真的 Hub 資料庫設定才跑得起來——在那個狀態下它們**應該跳過，
+ * 不是失敗**。
+ *
+ * 為什麼要特別處理：老師下載範本後照教材跑 `npm run verify`，看到一整片紅字
+ * 會以為自己弄壞了什麼，而實際上他只是還沒初始化。build-shell.mjs 已經為
+ * 同樣的理由排除了 test/build-shell.test.mjs（見該檔的排除理由），這幾條是
+ * 當時漏掉的。2026-09-06 實測空殼：16 個失敗全部來自這一個原因。
+ *
+ * 用 skip 而不是把它們排除在空殼外：這些測試守的是真實的行為契約，
+ * 老師跑過 hub init 之後就該恢復執行，不該永遠消失。
+ */
+const NO_HUB_DB = hasRemoteDatabase()
+  ? false
+  : "尚未建立線上資料庫（wrangler.jsonc 的 database_id 是佔位值）——先執行 node bin/hub.mjs init";
+
 
 const ALWAYS_YES = async () => true;
 
@@ -276,7 +296,7 @@ test("a blocked secret stops the whole ship, never reaching deploy or the databa
   assert.equal(calls.some((c) => c.includes("deploy")), false);
 });
 
-test("a new static project is registered private, gets a gate, and deploys with a secrets file", async () => {
+test("a new static project is registered private, gets a gate, and deploys with a secrets file", { skip: NO_HUB_DB }, async () => {
   const { calls, options } = makeShipOptions();
 
   options.ensureProjectRegistered = async (fields) => {
@@ -321,7 +341,7 @@ test("a new static project is registered private, gets a gate, and deploys with 
   assert.equal(registeredWith.version_ref, "abc123def456");
 });
 
-test("公開專案也會注入閘道——不注入的話後台改權限永遠不會生效", async () => {
+test("公開專案也會注入閘道——不注入的話後台改權限永遠不會生效", { skip: NO_HUB_DB }, async () => {
   /*
    * 2026-09-04 反轉。這條測試原本叫「an existing public project is not
    * gated, and deploys without a secrets file」，斷言公開專案跳過注入、
@@ -377,7 +397,7 @@ test("公開專案也會注入閘道——不注入的話後台改權限永遠�
 //      使用者在後台選的圖**：thumbnail_url 交給 registerDeployment()，只要資料夾
 //      裡有任何圖片就覆蓋。改成存 D1 並由 storeThumbnailFromFile() 自己更新。
 
-test("專案資料夾裡的截圖會被存進 D1 並指給這個專案", async () => {
+test("專案資料夾裡的截圖會被存進 D1 並指給這個專案", { skip: NO_HUB_DB }, async () => {
   const { options } = makeShipOptions();
   const projectDir = makeProject();
 
@@ -424,7 +444,7 @@ test("專案資料夾裡的截圖會被存進 D1 並指給這個專案", async (
   assert.match(step.detail, /不需要重新部署/);
 });
 
-test("縮圖存檔失敗只記 warn，不讓已經成功的部署變成失敗", async () => {
+test("縮圖存檔失敗只記 warn，不讓已經成功的部署變成失敗", { skip: NO_HUB_DB }, async () => {
   const { options } = makeShipOptions();
   const projectDir = makeProject();
 
@@ -449,7 +469,7 @@ test("縮圖存檔失敗只記 warn，不讓已經成功的部署變成失敗", 
   assert.match(step.detail, /超過 1 MB/);
 });
 
-test("查不到既有專案時仍然存得進去，只是跳過孤兒清理", async () => {
+test("查不到既有專案時仍然存得進去，只是跳過孤兒清理", { skip: NO_HUB_DB }, async () => {
   const { options } = makeShipOptions();
   const projectDir = makeProject();
 
@@ -475,7 +495,7 @@ test("查不到既有專案時仍然存得進去，只是跳過孤兒清理", as
   assert.equal(result.steps.find((s) => s.step === "thumbnail").status, "ok");
 });
 
-test("沒有截圖時不產生縮圖步驟，也完全不碰 thumbnail_url（不覆蓋後台設好的圖）", async () => {
+test("沒有截圖時不產生縮圖步驟，也完全不碰 thumbnail_url（不覆蓋後台設好的圖）", { skip: NO_HUB_DB }, async () => {
   const { options } = makeShipOptions();
 
   let registeredFields = null;
@@ -500,7 +520,7 @@ test("沒有截圖時不產生縮圖步驟，也完全不碰 thumbnail_url（不
   assert.equal(registeredFields.thumbnail_url, undefined);
 });
 
-test("password 專案會注入閘道並完成部署（2026-08-29 起支援，原本是擋停）", async () => {
+test("password 專案會注入閘道並完成部署（2026-08-29 起支援，原本是擋停）", { skip: NO_HUB_DB }, async () => {
   /*
    * 這條測試原本斷言 password 專案會被擋停（step: "gate-scope-check"）——
    * 那是「密碼雜湊轉成目標專案 Secret」還沒做出來之前的權宜行為。
@@ -556,7 +576,7 @@ test("a worker-type project (already has its own main) is refused before any DB 
   assert.equal(ensureCalled, false, "型態不符時不該去動資料庫");
 });
 
-test("a deploy failure reports that the code is already safely pushed and can be retried", async () => {
+test("a deploy failure reports that the code is already safely pushed and can be retried", { skip: NO_HUB_DB }, async () => {
   const { options } = makeShipOptions({ runnerConfig: { deployOk: false } });
 
   options.ensureProjectRegistered = async () => ({ projectId: 7, visibility: "public", isNew: false });
@@ -570,7 +590,7 @@ test("a deploy failure reports that the code is already safely pushed and can be
   assert.match(result.steps.at(-1).detail, /已經推上 GitHub.*安全重試/);
 });
 
-test("a successful deploy whose output has no parseable URL stops rather than assuming success", async () => {
+test("a successful deploy whose output has no parseable URL stops rather than assuming success", { skip: NO_HUB_DB }, async () => {
   const { options } = makeShipOptions({ runnerConfig: { deployStdout: "No targets deployed for ship-test (0.1 sec)\n" } });
 
   options.ensureProjectRegistered = async () => ({ projectId: 7, visibility: "public", isNew: false });
@@ -584,7 +604,7 @@ test("a successful deploy whose output has no parseable URL stops rather than as
   assert.match(result.steps.at(-1).detail, /不確定真正的部署狀態/);
 });
 
-test("a mismatched verification status code is reported, not silently accepted as done", async () => {
+test("a mismatched verification status code is reported, not silently accepted as done", { skip: NO_HUB_DB }, async () => {
   const { options } = makeShipOptions();
 
   options.ensureProjectRegistered = async () => ({ projectId: 7, visibility: "private", isNew: false });
@@ -599,7 +619,7 @@ test("a mismatched verification status code is reported, not silently accepted a
   assert.match(result.steps.at(-1).detail, /200.*404|預期 404/);
 });
 
-test("a directory left gated by a previous failed deploy is treated as a continuation, not refused as someone else's Worker project", async () => {
+test("a directory left gated by a previous failed deploy is treated as a continuation, not refused as someone else's Worker project", { skip: NO_HUB_DB }, async () => {
   const dir = makeContinuationProject();
   const { calls, options } = makeShipOptions();
   const secretsCapture = {};
@@ -671,7 +691,7 @@ function makePasswordProjectOptions(overrides = {}) {
   return { calls, options };
 }
 
-test("password 專案會把密碼雜湊隨部署注入成 PROJECT_PASSWORD_HASH", async () => {
+test("password 專案會把密碼雜湊隨部署注入成 PROJECT_PASSWORD_HASH", { skip: NO_HUB_DB }, async () => {
   const capture = {};
   const { options } = makePasswordProjectOptions();
 
@@ -784,7 +804,7 @@ test("readPasswordHash 把空字串當成沒設定", async () => {
   assert.equal(await readPasswordHash(7, { executeSql: runReal }), "abc");
 });
 
-test("重新部署時，進入點的後援權限會更新成目前的權限", async () => {
+test("重新部署時，進入點的後援權限會更新成目前的權限", { skip: NO_HUB_DB }, async () => {
   /*
    * 2026-08-29 真實端到端測試抓到的 bug 的回歸測試（2026-09-04 調整）。
    *
@@ -817,7 +837,7 @@ test("重新部署時，進入點的後援權限會更新成目前的權限", as
   assert.equal(gateStep.status, "ok");
 });
 
-test("舊專案重新部署時會補上缺的資料庫綁定", async () => {
+test("舊專案重新部署時會補上缺的資料庫綁定", { skip: NO_HUB_DB }, async () => {
   /*
    * 2026-09-04 之前注入的閘道沒有 D1 綁定，而重新部署走的是「只重寫進入點」
    * 那條路（injectGate 會因為 main 已存在而拒絕）。沒有這一步的話，那些專案

@@ -19,6 +19,17 @@ import {
 import { hasRemoteDatabase, readWranglerConfig } from "../tools/config.mjs";
 
 /*
+ * 空殼（剛下載的範本）還沒跑過 `node bin/hub.mjs init`，wrangler.jsonc 的
+ * database_id 是佔位值（前 8 碼全是 0）。標了 { skip: NO_HUB_DB } 的測試需要
+ * 一個真的 Hub 資料庫設定才跑得起來——在那個狀態下它們**應該跳過，不是失敗**。
+ * 理由與 test/hub-ship.test.mjs 同一條（見該檔說明）。
+ */
+const NO_HUB_DB = hasRemoteDatabase()
+  ? false
+  : "尚未建立線上資料庫（wrangler.jsonc 的 database_id 是佔位值）——先執行 node bin/hub.mjs init";
+
+
+/*
  * `needsGateInjection` 的測試已於 2026-09-04 移除，連同那個函式本身。
  * 它的作用是「只有受保護的權限才注入閘道」，而那正是「後台改成公開之後
  * 線上仍然 404、重新部署也修不好」的成因。現在一律注入，見
@@ -390,21 +401,27 @@ test("專案自己已經有 d1_databases 時停下來說清楚，不自動合併
   );
 });
 
-test("還沒建立線上資料庫時停下來，並指名要跑哪一道指令", () => {
+test("佔位的 database_id 會被認出來——沒認出來就會部署出一個連不到資料庫的專案", () => {
   /*
    * 剛下載範本、還沒跑 hub init 時，database_id 是佔位值（前 8 碼全是 0）。
    * 把它寫進使用者的專案設定檔，wrangler deploy 會失敗在一個跟真正原因
    * 無關的訊息上——他會以為是自己的網頁壞了。
    *
-   * 這裡用假設定檔測，不改真的 wrangler.jsonc。
+   * 這裡用假設定檔測，不改真的 wrangler.jsonc。這一條在空殼裡同樣成立，
+   * 所以**不跳過**：它守的是判準本身，與本專案初始化了沒有無關。
    */
   const placeholder = { d1_databases: [{ database_name: "x", database_id: "00000000-0000-0000-0000-000000000000" }] };
 
   assert.equal(hasRemoteDatabase(placeholder), false, "佔位值必須被認出來");
-  assert.equal(hasRemoteDatabase(readWranglerConfig()), true, "本專案已經有真的資料庫");
 });
 
-test("readHubDatabase 讀得到本專案自己的 D1 設定", () => {
+test("本專案已經建立過線上資料庫", { skip: NO_HUB_DB }, () => {
+  // 從上一條拆出來（2026-09-06）：這句斷言的是「這一份 checkout 初始化過了」，
+  // 在空殼裡依設計就是假的，混在同一條測試裡會讓老師看到一個無法解釋的失敗。
+  assert.equal(hasRemoteDatabase(readWranglerConfig()), true);
+});
+
+test("readHubDatabase 讀得到本專案自己的 D1 設定", { skip: NO_HUB_DB }, () => {
   // 綁到真實設定檔的唯一一條測試：寫死名稱與 id 會讓別人照教材建自己一套時
   // 安靜地綁到不存在的資料庫，所以要確認這條讀取路徑真的通。
   const database = readHubDatabase();
