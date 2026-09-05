@@ -662,13 +662,22 @@
     prevButton.type = "button";
     prevButton.className = "gallery-row-arrow gallery-row-arrow-prev";
     prevButton.setAttribute("aria-label", `往左看更多 ${row.title} 的專案`);
-    prevButton.textContent = "‹";
+    /*
+     * 箭頭本身由 CSS 畫（見 gallery.css 的 .gallery-row-arrow::before），
+     * 這裡刻意不放文字（2026-09-06）。
+     *
+     * 原本用的是 ‹ › 這兩個字元，但它們是**標點符號**：字型裡的字身本來就
+     * 比數字或字母小，而且貼著基線排。flex 的置中對齊的是「行框」不是
+     * 看得見的那一筆，所以無論字級調多大，看起來都是又小又偏下。
+     * 用 CSS 畫的 V 形沒有這個問題，尺寸與位置都能算準，也不受字型影響。
+     *
+     * 無障礙靠上面那行 aria-label，不靠這個字元。
+     */
 
     const nextButton = document.createElement("button");
     nextButton.type = "button";
     nextButton.className = "gallery-row-arrow gallery-row-arrow-next";
     nextButton.setAttribute("aria-label", `往右看更多 ${row.title} 的專案`);
-    nextButton.textContent = "›";
 
     // 2026-08-28 使用者修正：箭頭要疊在最左／最右的卡片上，不是放在分類標題的
     // 右上角。所以 controls 從 head 移到 rowEl（見下方 append），由 CSS 絕對定位

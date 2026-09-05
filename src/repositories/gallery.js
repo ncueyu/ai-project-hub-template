@@ -167,7 +167,7 @@ function shapePublicProjects(rows) {
     project_type: row.project_type,
 
     // 只輸出「是不是主卡片」的布林值，不輸出 sort_order 原始數字——
-    // 前端只需要知道要不要畫七彩光暈，不需要知道背後的排序機制
+    // 前端只需要知道要不要套用該配色的主卡樣式，不需要知道背後的排序機制
     // （2026-08-28 工作計畫 Part D）。sort_order = 1 是
     // `setPrimaryProject` 寫入主卡片時固定使用的值，見該函式註解。
     is_primary: Number(row.sort_order) === 1,

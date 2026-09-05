@@ -1031,3 +1031,60 @@ input[type="file"]::file-selector-button {
   color: var(--color-foreground);
   font-weight: 700;
 }
+
+/* ---- 專案清單的分類篩選（2026-09-06）---- */
+
+/*
+ * 這一列設了 display: flex，而 HTML 上帶著 hidden——不加下面那條 [hidden]
+ * 覆寫的話，hidden 會完全失效（本專案踩過五次的同一個坑，
+ * test/hidden-attribute-overrides.test.mjs 專門盯這件事）。
+ */
+.admin-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.admin-filter[hidden] {
+  display: none;
+}
+
+.admin-filter-chip {
+  min-height: 36px;
+  padding: 6px 14px;
+  border: var(--width-button-border) solid var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-secondary);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+.admin-filter-chip:hover {
+  border-color: var(--color-accent);
+  color: var(--color-foreground);
+}
+.admin-filter-chip:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+.admin-filter-chip.is-active {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-primary);
+}
+
+/* 篩選之後一筆都不剩時的說明。不是錯誤，所以用一般文字而非 error 樣式。 */
+.project-admin-empty {
+  padding: 18px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-card);
+  color: var(--color-secondary);
+  list-style: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-filter-chip {
+    transition: none;
+  }
+}

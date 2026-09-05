@@ -149,6 +149,10 @@
   const projectCategorySelect = /** @type {HTMLSelectElement} */ ($("project-category"));
   const projectTagsContainer = $("project-tags");
   const projectTagsEmpty = $("project-tags-empty");
+  const projectSortOrderInput = /** @type {HTMLInputElement} */ ($("project-sort-order"));
+  const projectSortOrderHint = $("project-sort-order-hint");
+  const projectSortOrderNewHint = $("project-sort-order-new");
+  const projectFilter = $("project-filter");
 
   // ---------------------------------------------------------------- 推薦連結（links）DOM
   const linkListLoading = $("link-list-loading");
@@ -196,6 +200,11 @@
     deleteTarget: null,
     deploymentProject: null,
     lastTrigger: null,
+    /**
+     * 專案清單的分類篩選：`null` = 全部、數字 = 分類 id、`"none"` = 未分類。
+     * 存 id 而不是名稱——分類可以改名，用名稱比對會在改名後安靜地失效。
+     */
+    categoryFilter: null,
   };
 
   // ---------------------------------------------------------------- 共用工具
@@ -480,6 +489,52 @@
     projectList.hidden = mode !== "list";
   }
 
+  /**
+   * 畫出分類篩選 chip。只在有分類可篩時出現——一個永遠只有「全部」一顆按鈕的
+   * 工具列是純粹的雜訊。
+   *
+   * 用 `textContent` 而不是 `innerHTML`：分類名稱是使用者自己輸入的內容
+   * （見 AGENTS.md 的既有慣例）。
+   */
+  function renderCategoryFilter() {
+    const used = new Set(state.projects.map((project) => project.category_id ?? null));
+    const categories = state.categories.filter((category) => used.has(category.id));
+    const hasUncategorised = used.has(null);
+
+    // 只有一種分類（或全部未分類）時篩選沒有意義，整列收起來。
+    const worthShowing = categories.length + (hasUncategorised ? 1 : 0) > 1;
+
+    projectFilter.hidden = !worthShowing;
+    projectFilter.textContent = "";
+
+    if (!worthShowing) {
+      state.categoryFilter = null;
+      return;
+    }
+
+    /** @param {string} label @param {null | number | "none"} value */
+    const addChip = (label, value) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "admin-filter-chip";
+      button.textContent = label;
+      const active = state.categoryFilter === value;
+      button.classList.toggle("is-active", active);
+      // aria-pressed 讓螢幕閱讀器知道這是切換狀態，不是一次性動作。
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+      button.addEventListener("click", () => {
+        // 再按一次目前選中的 chip = 取消篩選，不必特地移到「全部」。
+        state.categoryFilter = active ? null : value;
+        renderProjects();
+      });
+      projectFilter.append(button);
+    };
+
+    addChip("全部", null);
+    for (const category of categories) addChip(category.name, category.id);
+    if (hasUncategorised) addChip("未分類", "none");
+  }
+
   function renderProjects() {
     projectList.textContent = "";
 
@@ -488,7 +543,30 @@
       return;
     }
 
-    for (const project of state.projects) {
+    renderCategoryFilter();
+
+    /*
+     * 依選中的分類過濾（2026-09-06）。
+     *
+     * `state.categoryFilter` 是分類 id、字串 "none"（未分類），或 null（全部）。
+     * 用 id 而不是名稱：分類可以改名，改名之後用名稱比對會安靜地失效。
+     */
+    const visible = state.projects.filter((project) => {
+      if (state.categoryFilter === null) return true;
+      if (state.categoryFilter === "none") return project.category_id === null
+        || project.category_id === undefined;
+      return project.category_id === state.categoryFilter;
+    });
+
+    if (visible.length === 0) {
+      const empty = document.createElement("li");
+      empty.className = "project-admin-empty";
+      empty.textContent = "這個分類目前沒有專案。";
+      projectList.append(empty);
+      return;
+    }
+
+    for (const project of visible) {
       const row = rowTemplate.content.cloneNode(true);
 
       const badge = row.querySelector(".project-admin-visibility");
@@ -505,6 +583,9 @@
 
       const category = state.categories.find((c) => c.id === project.category_id);
       const parts = [
+        // 順序放第一個：這是清單目前的排序依據，讀者要能一眼對照
+        // 「畫面上第幾個」與「它的數字是多少」。
+        `順序 ${project.sort_order ?? 0}`,
         PLATFORM_LABELS[project.platform] ?? project.platform,
         category ? `分類：${category.name}` : "未分類",
       ];
@@ -984,10 +1065,25 @@
       for (const input of projectTagsContainer.querySelectorAll('input[name="tag_ids"]')) {
         input.checked = tagIds.has(input.value);
       }
+
+      projectSortOrderInput.value = String(project.sort_order ?? 0);
     } else {
       const defaultVisibility = projectForm.querySelector('input[name="visibility"][value="public"]');
       if (defaultVisibility) defaultVisibility.checked = true;
+
+      // 新專案的順序由後端算成「目前最大值 + 1」，這裡讓欄位留白，
+      // 免得顯示一個看起來可以改、實際上會被忽略的數字。
+      projectSortOrderInput.value = "";
     }
+
+    /*
+     * 新增時把欄位停用並換一段說明。留著可輸入但送出後被忽略，是最糟的做法——
+     * 管理者會以為自己指定了位置，結果專案跑到別的地方，而畫面沒有任何提示。
+     */
+    const editing = Boolean(project);
+    projectSortOrderInput.disabled = !editing;
+    projectSortOrderHint.hidden = !editing;
+    projectSortOrderNewHint.hidden = editing;
 
     // 上傳圖片需要專案已經存在（要有 id 才知道要掛到哪個專案），
     // 因此只在編輯既有專案時提供，新增時改為提示先儲存。
@@ -1150,6 +1246,18 @@
       worker_name: String(data.get("worker_name") ?? "").trim() || null,
       tag_ids: tagIds,
     };
+
+    /*
+     * 顯示順序只在編輯時送出（2026-09-06）。
+     *
+     * 新增走的是 POST /api/projects，那條路徑由後端算成「目前最大值 + 1」
+     * （見 src/repositories/projects.js 的 createProject）。這裡若一併送出，
+     * 值會被安靜忽略——表單看起來收下了，實際沒有效果。
+     */
+    if (state.editingId && !projectSortOrderInput.disabled) {
+      const raw = String(data.get("sort_order") ?? "").trim();
+      if (raw !== "") payload.sort_order = Number(raw);
+    }
 
     const originalLabel = projectSubmit.textContent;
     projectSubmit.disabled = true;

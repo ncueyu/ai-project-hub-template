@@ -350,3 +350,35 @@ test("ensureProjectRegistered is idempotent: calling it again after the project 
   assert.equal(first.visibility, second.visibility);
   assert.equal(calls.length, 1, "第二次呼叫（此時已存在）不該再寫入");
 });
+
+test("buildUpsertProjectSql：新專案的 sort_order 是「目前最大值 + 1」，不是欄位預設的 0", () => {
+  /*
+   * 這條釘的是一個看不見的 bug：欄位預設值 0 加上 `ORDER BY sort_order ASC`，
+   * 會讓每一個新部署的專案插到管理者排好的順序最前面。
+   * 2026-09-06 實測：主卡片被當天新增的四個專案擠到第 5 位，畫面上毫無提示。
+   */
+  const sql = buildUpsertProjectSql(
+    { name: "t", slug: "t", visibility: "private", platform: "cloudflare", project_type: "static" },
+    null,
+    NOW,
+  );
+
+  assert.match(sql, /sort_order/, "欄位清單要有 sort_order");
+  assert.match(
+    sql,
+    /\(SELECT COALESCE\(MAX\(sort_order\), 0\) \+ 1 FROM projects\)/,
+    "要用純量子查詢取最大值＋1；先查再帶值會多一個競態窗口",
+  );
+  assert.equal(sql.includes("undefined"), false);
+});
+
+test("buildUpsertProjectSql：更新既有專案時不碰 sort_order", () => {
+  // 重新部署不該重置管理者排好的順序——那是他的編輯決定，不是部署的副作用。
+  const sql = buildUpsertProjectSql(
+    { repository_url: null, worker_name: null, deployment_url: null },
+    { id: 7 },
+    NOW,
+  );
+
+  assert.equal(sql.includes("sort_order"), false);
+});

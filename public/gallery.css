@@ -381,28 +381,71 @@
   pointer-events: auto;
 }
 
+/*
+ * 2026-09-06 加大加深（使用者：「箭頭再大一點，顏色要再清楚一點，更明顯一點」）。
+ *
+ * 原本是 44px 的白底圓形、1px 淺邊框、1.1rem 的 ‹ ›。疊在卡片上時整顆幾乎
+ * 融進卡片背景——卡片本身也是 --color-surface 白底，等於白底疊白底，
+ * 只靠一條 1px 淺灰邊框區分，遠看根本不像可以按的東西。
+ *
+ * 改成實心 accent 圓形：底色與文字色都用配色 token，所以四套配色各自跟著變，
+ * 不會有哪一套變成看不見。尺寸 44 → 56px，字級 1.1rem → 2rem——‹ › 這兩個
+ * 字元在字型裡本來就偏小，只放大按鈕不放大字，看起來還是一顆空圓。
+ *
+ * 陰影從 sm 換成 md：實心色塊疊在卡片上，需要更明確的浮起感才不會像是
+ * 卡片自己的一部分。
+ *
+ * 尺寸放大**不影響**上方 .gallery-row-controls 的 top/height——那一層是
+ * align-items: center，箭頭多大都會對齊卡片中心。
+ */
 .gallery-row-arrow {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* 疊在卡片上方，所以比原本放在標題列時放大並加陰影，才不會融進卡片背景。 */
-  width: 44px;
-  height: 44px;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--color-border);
+  width: 56px;
+  height: 56px;
+  box-shadow: var(--shadow-md);
+  border: 2px solid var(--color-accent);
   border-radius: 999px;
-  background: var(--color-surface);
-  color: var(--color-foreground);
-  font-family: inherit;
-  font-size: 1.1rem;
-  line-height: 1;
+  background: var(--color-accent);
+  color: var(--color-on-primary);
   cursor: pointer;
-  transition: border-color 200ms ease, color 200ms ease, opacity 200ms ease;
+  transition: background-color 200ms ease, border-color 200ms ease, opacity 200ms ease;
+}
+
+/*
+ * 箭頭本體：用兩條邊框轉 45 度畫成 V 形（2026-09-06 使用者：「裡面的箭頭
+ * 太小，而且太靠下方」）。
+ *
+ * 原本是 ‹ › 兩個字元。它們是標點符號——字型裡的字身本來就小，而且貼著
+ * 基線排，所以 flex 置中（對齊行框）之後看起來又小又偏下。字級再怎麼加
+ * 都治不好，因為問題不在字級而在字元本身的度量。
+ *
+ * 改用邊框畫的好處：18px 就是 18px、粗細就是 3px，不受字型影響；而且
+ * 旋轉後的方框中心就是視覺中心，配合父層的 align/justify center 必然置中。
+ *
+ * translateX 是**視覺補正**：V 形的筆畫重心偏向開口的反方向，幾何置中
+ * 看起來反而會偏。往開口方向推 3px 才會看起來在正中間。
+ */
+.gallery-row-arrow::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  border-top: 3px solid currentColor;
+  border-right: 3px solid currentColor;
+}
+
+.gallery-row-arrow-prev::before {
+  transform: translateX(3px) rotate(-135deg);
+}
+
+.gallery-row-arrow-next::before {
+  transform: translateX(-3px) rotate(45deg);
 }
 
 .gallery-row-arrow:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  border-color: var(--color-accent-hover);
+  background: var(--color-accent-hover);
 }
 
 .gallery-row-arrow:focus-visible {
@@ -417,7 +460,11 @@
  * 按鈕消失，是為了不讓標題列寬度跟著箭頭數量變動而跳動（E3 明確要求）。
  */
 .gallery-row-arrow:disabled {
-  opacity: 0.35;
+  /*
+   * 0.35 是白底時代的值。實心 accent 圓形在 0.35 下會變成一塊看不出是什麼的
+   * 淡色汙漬，反而比原本更礙眼。0.4 仍然明顯弱於可用狀態，但還看得出是箭頭。
+   */
+  opacity: 0.4;
   cursor: default;
 }
 
@@ -447,7 +494,13 @@
   scroll-behavior: smooth;
   scroll-snap-type: x proximity;
   /*
-   * 四邊內距都要留給主卡片的七彩光暈（見下方 is-primary 規則）。
+   * 四邊內距原本是為了容納主卡片的旋轉七彩光暈而撐開的。
+   * **那個光暈已於 2026-08-30 移除**（見本檔下方的說明），現在四套配色的
+   * 主卡標記都不會外溢出卡片邊界，這個內距因此比實際需要的大。
+   *
+   * 2026-09-06 刻意不動它：內距同時被 .gallery-row-controls 的 top 引用
+   * （見下方【耦合】），而且改小是純視覺調整、應該由使用者決定，不是
+   * 清理註解時順手做掉的事。下面那段推導保留為當時的紀錄。
    * 橫排必須有 overflow-x 才能捲動，而 overflow 的裁切發生在內距框
    * （padding box）邊緣——只能用內距把光暈的暈開範圍讓進裁切線以內，
    * 無法完全避免（這是刻意接受的取捨）。
@@ -587,7 +640,10 @@
  * 流排，也就不可能推擠到任何東西；article 本身的 overflow: hidden 會把
  * 超出的部分裁掉，不會漏到卡片外面。
  *
- * 方案零不在這裡——它的主卡語言就是既有的「更寬＋七彩光暈」，不動。
+ * 方案零不在這裡——它的主卡語言是既有的「更寬＋外框線」（見下方
+ * html:not([data-theme]) 的 outline 規則），不動。
+ * （2026-09-06 更正：這裡原本寫「更寬＋七彩光暈」，但旋轉光暈同一份檔案的
+ *  下一段就寫著它已於 2026-08-30 移除，方案零現在用的是 outline。）
  */
 
 /*

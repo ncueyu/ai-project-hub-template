@@ -117,6 +117,14 @@
           <p>按下「新增專案」建立第一筆資料。</p>
         </div>
 
+        <!--
+          分類篩選（2026-09-06 新增）。刻意做成同一個分頁裡的 chip，而不是
+          再開一個分頁：後台分頁是寫死的四個（admin.js 的 TABS），而分類會
+          隨使用者增刪而變動，兩者搭不起來。展示中心首頁已經用 chip 篩選分類
+          （public/app.js），兩邊同一套操作方式，切過去不用重新學。
+        -->
+        <div class="admin-filter" id="project-filter" role="group" aria-label="依分類篩選專案" hidden></div>
+
         <ul class="project-admin-list" id="project-list" hidden></ul>
       </section>
       </div>
@@ -583,6 +591,36 @@
             <p class="field-error" id="project-category-error" hidden></p>
           </div>
 
+          <!--
+            顯示順序（2026-09-06 新增）。
+
+            「填 1 = 主卡片」是把一個既有的隱藏規則攤開講，不是新行為：
+            展示中心判斷主卡片的方式一直都是 `sort_order === 1`
+            （見 src/repositories/gallery.js）。不寫出來的話，管理者把某張卡
+            排到第一位之後會突然發現它變成主卡片，而畫面上沒有任何線索。
+          -->
+          <div class="field">
+            <label for="project-sort-order">顯示順序</label>
+            <input type="number" id="project-sort-order" name="sort_order" min="0" step="1"
+              inputmode="numeric" autocomplete="off" aria-describedby="project-sort-order-hint project-sort-order-error" />
+            <p class="field-hint" id="project-sort-order-hint">
+              數字由小到大排列。<strong>填 1 就是主卡片</strong>（會套用該配色的主卡樣式）。
+              <br />
+              <!--
+                0 的行為一定要寫出來（2026-09-06）：它是「尚未指定」的預設值，
+                但排序是由小到大，所以 0 會排在所有已編號的專案**前面**。
+                第一次用這個欄位的人幾乎必定會撞到——把某張設成 1、卻發現它
+                沒排到第一，而畫面上沒有任何線索解釋為什麼。
+              -->
+              還沒編號的專案是 <strong>0</strong>，而 0 最小——所以它們會排在你編號過的專案<strong>前面</strong>。
+              要讓順序完全照你的意思，把每一個都編上號。
+            </p>
+            <p class="field-hint" id="project-sort-order-new" hidden>
+              新專案會自動排到最後，儲存後再回來調整即可。
+            </p>
+            <p class="field-error" id="project-sort-order-error" hidden></p>
+          </div>
+
           <fieldset class="field" id="tag-fieldset">
             <legend>標籤</legend>
             <div class="tag-checkboxes" id="project-tags"></div>
@@ -832,7 +870,14 @@
         </div>
         <div class="project-admin-actions">
           <button class="button button-quiet project-copy-link" type="button" hidden>複製連結</button>
-          <button class="button button-quiet project-set-primary" type="button">設為主卡片</button>
+          <!--
+            title 講明這顆按鈕的副作用（2026-09-06）：它不只改目標，還會把
+            其他每一個專案依目前顯示順序重編成 2,3,4…（見 setPrimaryProject）。
+            相對順序有保留，但刻意留的間隔（10／20／30 方便日後插入）會被壓平。
+            開放手動編輯順序之後，不講的話那次壓平會變成無法解釋的意外。
+          -->
+          <button class="button button-quiet project-set-primary" type="button"
+            title="會把這個專案設為 1，並將其餘專案依目前順序重新編號成 2、3、4…">設為主卡片</button>
           <button class="button button-quiet project-deployments" type="button">部署紀錄</button>
           <button class="button button-secondary project-edit" type="button">編輯</button>
           <button class="button button-quiet project-delete" type="button">刪除</button>

@@ -83,6 +83,7 @@ export function buildUpsertProjectSql(fields, existing, now) {
       "deployment_url",
       "thumbnail_url",
       "category_id",
+      "sort_order",
       "created_at",
       "updated_at",
       "last_deployed_at",
@@ -101,6 +102,19 @@ export function buildUpsertProjectSql(fields, existing, now) {
       sqlLiteralOrNull(fields.deployment_url),
       sqlLiteralOrNull(fields.thumbnail_url),
       sqlLiteralOrNull(fields.category_id),
+      /*
+       * 排到最後（2026-09-06）。
+       *
+       * 這不是新功能，是修一個看不見的 bug：`sort_order` 的欄位預設值是 0，
+       * 而展示中心是 `ORDER BY sort_order ASC`——所以在管理者排過順序之後
+       * （排過的都 ≥1），**每一個新部署的專案都會插到最前面**，把他排好的
+       * 第一張擠掉。2026-09-06 實測：主卡片被四個當天新增的專案擠到第 5 位，
+       * 而畫面上完全看不出原因。
+       *
+       * 用純量子查詢而不是先查再帶值：登錄是一次性的 SQL 送出，多一趟往返
+       * 就多一個「查完到寫入之間有人新增專案」的窗口。COALESCE 處理空表。
+       */
+      "(SELECT COALESCE(MAX(sort_order), 0) + 1 FROM projects)",
       sqlLiteral(now),
       sqlLiteral(now),
       sqlLiteral(now),

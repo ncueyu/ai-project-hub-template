@@ -324,6 +324,7 @@ node node_modules/wrangler/bin/wrangler.js deploy --secrets-file <檔案>
 |---|---|
 | **不可修改既有的 migration 檔案**，一律新增 `migrations/000N_*.sql` | 已套用的 migration 改了不會重跑，本機與遠端會分歧 |
 | 專案要放在 `要部署的專案/<專案名>/`，各自有獨立的 `.git` | 展示中心的 `.gitignore` 擋掉整個資料夾，兩者是獨立的 repo |
+| **不要手改 `public/stage-1/index.html` 的教學卡片與側邊欄** | 兩處都由 `scripts/sync-stage1-web.mjs` 的 `documents` 陣列產生（卡片注入在 `<!-- STAGE1_CARDS:START/END -->` 之間）。手改會在下次同步被蓋掉，而且**不會有任何錯誤訊息**——2026-09-05 之前首頁是手寫的，結果 golive／github-push／scope 三篇寫好了、側邊欄看得到，首頁卻沒有入口，讀者永遠找不到。要增刪教材請改那個陣列 |
 | **縮圖放專案根目錄，不要放 `public/`** | 縮圖是給展示中心用的中介資料，不是那個網站的內容。`hub ship` 會自動把它存進資料庫並指給該專案（**不需要重新部署展示中心**）——**檔名不限**，任何圖片檔都認得（2026-08-30 更正：原本寫「自動裁切轉檔」，但 2026-08-17 已裁定不做影像處理，`object-fit: contain` 讓任何比例都完整顯示）。**單張上限 1 MB**（D1 單列 2 MB、單一 SQL 敘述 100 KB，所以位元組要分段存） |
 | **外部連結專案的資料夾裡不放網頁檔** | `hub link` 的判斷條件是「沒有任何 HTML、但有寫著網址的文字檔」。放了 `index.html` 就會被判成要部署的專案，`hub link` 會拒絕並叫你改用 `hub ship` |
 | **專案的 `wrangler.jsonc` 裡有一個 `HUB_DB` 綁定，不要拿掉** | 那是專案 Worker 用來查自己目前權限的管道（見 `src/access-gate/policy-lookup.js`）。拿掉之後**不會有任何錯誤訊息**：查詢安靜地回 `null`、回退到部署當下烙的權限，網站看起來完全正常，只是在後台改權限不再即時生效。裡面的 `database_id` 會進使用者的專案 repo——那是識別碼不是憑證（沒有 Cloudflare 帳號授權動不了任何東西），而且 `hub github` 建的 repo 一律 private |

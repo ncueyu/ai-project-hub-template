@@ -498,6 +498,26 @@ export function validateProjectPatch(input) {
     if (tagIds !== undefined) value.tag_ids = tagIds;
   }
 
+  /*
+   * 顯示順序（2026-09-06 新增）。
+   *
+   * 在此之前 `sort_order` 只能透過「設為主卡片」間接改變——那個動作把目標設成 1、
+   * 其餘依目前顯示順序重編成 2,3,4…，管理者沒有辦法自己指定任一張卡片的位置。
+   *
+   * **不接受負數**，理由不是潔癖：`0` 是 migration 0003 定義的「尚未指定」中性值，
+   * 而展示中心是 `ORDER BY sort_order ASC`。允許負數等於開放一個「比未指定還前面」
+   * 的區間，那個區間沒有任何語意，只會讓「為什麼這張跑到最前面」變成無解的問題。
+   */
+  if ("sort_order" in input) {
+    if (typeof input.sort_order !== "number" || !Number.isInteger(input.sort_order)) {
+      fields.sort_order = "必須是整數。";
+    } else if (input.sort_order < 0) {
+      fields.sort_order = "不可以是負數。";
+    } else {
+      value.sort_order = input.sort_order;
+    }
+  }
+
   if (Object.keys(fields).length > 0) {
     return { ok: false, fields };
   }

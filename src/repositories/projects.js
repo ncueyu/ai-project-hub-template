@@ -48,6 +48,12 @@ const UPDATABLE_COLUMNS = new Set([
   "project_type",
   "database_type",
   "thumbnail_url",
+  /*
+   * 2026-09-06 加入。在此之前 sort_order 只能被 setPrimaryProject() 間接改寫，
+   * 管理者無法指定任一張卡片的位置。格式驗證在 src/validation.js 的
+   * validateProjectPatch（非負整數）。
+   */
+  "sort_order",
 ]);
 
 export const DEFAULT_LIMIT = 50;
@@ -101,8 +107,18 @@ export async function listProjects(db, options = {}) {
 
   const listed = await db
     .prepare(
+      /*
+       * 排序與展示中心一致（2026-09-06 改；原本是 `updated_at DESC, id DESC`）。
+       *
+       * 這條 SQL 餵的是後台的專案清單，而後台正是管理者用來**調整顯示順序**的
+       * 地方。兩邊排法不同的話，他改完序號回到清單，看到的還是舊的排列——
+       * 無從判斷自己改對了沒有，只能跑去展示中心對照。
+       *
+       * 與 `src/repositories/gallery.js` 的 ORDER BY 刻意逐字相同。
+       * 改一邊而忘了另一邊不會有任何錯誤訊息，只會讓兩個畫面靜靜地不一致。
+       */
       `SELECT ${PROJECT_COLUMNS} FROM projects ${where}
-       ORDER BY updated_at DESC, id DESC
+       ORDER BY sort_order ASC, updated_at DESC, id DESC
        LIMIT ? OFFSET ?`,
     )
     .bind(...params, limit, offset)
@@ -204,12 +220,27 @@ export async function slugExists(db, slug, excludeId) {
 export async function createProject(db, value, now) {
   const inserted = await db
     .prepare(
+      /*
+       * sort_order 用純量子查詢取「目前最大值 + 1」，而不是讓它吃欄位預設的 0
+       * （2026-09-06）。
+       *
+       * 0 加上展示中心的 `ORDER BY sort_order ASC`，等於每一個新專案都插到
+       * 管理者排好的順序最前面。2026-09-06 實測：主卡片被當天新增的四個專案
+       * 擠到第 5 位，而畫面上完全看不出原因。
+       *
+       * 建立專案有兩條路（後台的 POST /api/projects 走這裡，`hub ship` 走
+       * `tools/register.mjs`），兩條都要做同一件事——只修一邊的話，另一邊
+       * 進來的專案照樣插隊，而且同樣沒有錯誤訊息。
+       */
       `INSERT INTO projects (
          name, slug, description, visibility, category_id,
          repository_url, worker_name, platform, deployment_url,
          project_type, database_type, thumbnail_url,
-         created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         sort_order, created_at, updated_at
+       ) VALUES (
+         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+         (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM projects), ?, ?
+       )
        RETURNING id`,
     )
     .bind(

@@ -348,3 +348,39 @@ test("建立專案時的 thumbnail_url 走同一套規則", () => {
 
   assert.equal(result.ok, true, JSON.stringify(result.fields));
 });
+
+/* ------------------------------------------------------------------ *
+ * 顯示順序 sort_order（2026-09-06）
+ * ------------------------------------------------------------------ */
+
+test("patch 接受 sort_order 整數", () => {
+  const result = validateProjectPatch({ sort_order: 3 });
+
+  assert.equal(result.ok, true, JSON.stringify(result.fields));
+  assert.equal(result.value.sort_order, 3);
+});
+
+test("patch 接受 sort_order 為 0——那是 migration 0003 定義的「尚未指定」中性值", () => {
+  const result = validateProjectPatch({ sort_order: 0 });
+
+  assert.equal(result.ok, true, JSON.stringify(result.fields));
+  assert.equal(result.value.sort_order, 0);
+});
+
+test("patch 拒絕負數的 sort_order", () => {
+  // 展示中心是 ORDER BY sort_order ASC。負數等於開放一個「比未指定還前面」
+  // 的區間，那個區間沒有語意，只會讓「為什麼這張跑到最前面」變成無解的問題。
+  const result = validateProjectPatch({ sort_order: -1 });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.fields.sort_order);
+});
+
+test("patch 拒絕非整數的 sort_order", () => {
+  for (const bad of [1.5, "2", null, true, []]) {
+    const result = validateProjectPatch({ sort_order: bad });
+
+    assert.equal(result.ok, false, `${JSON.stringify(bad)} 應該被拒絕`);
+    assert.ok(result.fields.sort_order, `${JSON.stringify(bad)} 應該指出是 sort_order 的問題`);
+  }
+});
