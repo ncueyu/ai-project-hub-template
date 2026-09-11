@@ -178,43 +178,199 @@ venv/
 # ---------------------------------------------------------------------------
 old_data/
 
-# ===== 自動同步安全強化（2026-09-11 新增）=====
-# 理由：本 repo 已啟用 Stop hook 自動 git add -A，沒有人眼把關，
-# 故補上原規則未涵蓋的高風險類型。已追蹤的檔案不受影響。
-# 需要放行時在本區之後加「完整路徑＋檔名」，【嚴禁】用裸擴展名。
+# ===== 製作教材用的素材與工作檔（2026-09-11 分類）=====
+# 判定依據：未被任何網站程式碼／資料檔引用（逐檔以 grep 反查確認）。
+# 教材（被 lesson-data.js 引用的截圖）已進版控；這些是產出教材的過程素材。
+# 註：[ ] 在 gitignore 是字元類別，檔名含中括號必須跳脫。
+/新手安裝教學/
+/0831字體修改*.png
+/主畫面修改*.png
+/展示中心logo_*.png
+/設定展示中心後台密碼*.png
+/\[_小白操作過程\].txt
 
-# 圖片與 PDF（截圖常含校務系統畫面與學生個資）
+# ===== 資料與 AI 對話明文（原規則未涵蓋）=====
+*.db
+*.sqlite
+*.sqlite3
+*.jsonl
+
+# ===========================================================================
+# 2026-09-11：路徑限定與資料出口封鎖
+#
+# 為什麼需要這一段：本 repo 已啟用 Claude Code 的 Stop hook，每次回應結束會跑
+# git add -A → commit → push。那支腳本的檔頭自己寫著，它的安全性「完全依賴
+# 從嚴白名單 .gitignore」，而本檔是黑名單——漏掉的檔名會被**靜默**推上
+# GitHub，不會有任何提示。
+#
+# 2026-09-11 依 GitHub-Desktop-操作手冊 C-5 跑誘餌檔測試，12 類沒被擋，其中
+# id_rsa 與 secrets.toml 正是 要部署的專案/README.md 列為「絕對不要放進來」
+# 的項目。以下補上。
+#
+# ⚠️ 這些規則對**已經追蹤**的檔案完全無效（2026-09-11 以最小重現確認：加上
+#    *.jpg 之後，已 commit 的圖仍在 git ls-files 裡，修改照樣被 stage）。
+#    它們只防止新檔案誤入。既有檔案要移出版控必須 git rm --cached。
+# ===========================================================================
+
+# --- 圖片：先全擋，再依路徑放行 ---
+#
+# 上面 /0831字體修改*.png 那幾條是逐檔列舉，只擋得住當時想得到的檔名；
+# 一張掉在根目錄的「教室照片.jpg」不會被任何一條命中。
+#
+# 圖片是本專案的內容（284 張），不能全面封鎖。但實測它們剛好只落在下面四個
+# 目錄裡，所以改成路徑限定——掉在其他任何位置的圖片一律視為誤入。
+# 新增放行目錄時，記得四個副檔名群都要加，否則會出現「某一類圖靜默消失」。
 *.png
 *.jpg
 *.jpeg
 *.gif
 *.webp
+*.bmp
+*.ico
 *.svg
+
+# public/
+!public/**/*.png
+!public/**/*.jpg
+!public/**/*.jpeg
+!public/**/*.gif
+!public/**/*.webp
+!public/**/*.bmp
+!public/**/*.ico
+!public/**/*.svg
+
+# 帳號申請示範/
+!帳號申請示範/**/*.png
+!帳號申請示範/**/*.jpg
+!帳號申請示範/**/*.jpeg
+!帳號申請示範/**/*.gif
+!帳號申請示範/**/*.webp
+!帳號申請示範/**/*.bmp
+!帳號申請示範/**/*.ico
+!帳號申請示範/**/*.svg
+
+# templates/
+!templates/**/*.png
+!templates/**/*.jpg
+!templates/**/*.jpeg
+!templates/**/*.gif
+!templates/**/*.webp
+!templates/**/*.bmp
+!templates/**/*.ico
+!templates/**/*.svg
+
+
+# --- 憑證與私鑰（誘餌測試 2026-09-11：全部沒被擋）---
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.ppk
+id_rsa
+id_rsa.*
+id_ecdsa
+id_ecdsa.*
+id_ed25519
+id_ed25519.*
+secrets.toml
+secrets.json
+secrets.yaml
+secrets.yml
+credentials
+credentials.*
+service-account*.json
+
+# --- 資料出口與文件檔 ---
+# .sql 只放行 migrations/：新增 migration 是常態，擋掉會變成另一種靜默失敗。
+*.sql
+!migrations/*.sql
+!scripts/*.sql
+
+# .txt 是名冊／log／dump 最常見的去處（從嚴範本檔頭自己這樣警告）。
+# 本 repo 只有兩個內容用途的 .txt，逐一放行，其餘一律擋。
+*.txt
+!帳號申請示範/**/*.txt
+
 *.pdf
+*.doc
+*.docx
+*.ppt
+*.pptx
+*.odt
+*.ods
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz
+*.gz
 
-# 例外：專案自有素材目錄（已確認為專案圖示，非截圖）
-!public/logos/*.png
-!public/logos/*.svg
+# ===== 產出教材的來源素材（2026-09-11 使用者裁定：範本會用到的才進版控）=====
+#
+# 這個目錄產出 public/stage-1/walkthrough/——那份產出物才是網站在服務的東西，
+# 它已經在版控裡（71 個檔案）。來源目錄的 67 張圖與產出物內容完全相同，
+# 留在版控等於同一批圖存兩份；它的 操作順序.txt 與 index.html 還含作者網址
+# 與名字，會讓空殼的外洩掃描擋下整個範本。
+#
+# ⚠️ 其中 5 張只存在於這裡、產出物沒有（017、041、069、058-專案沒有顯示err、
+#    058-專案沒有顯示err02）。移出版控後它們只剩磁碟上這一份，沒有 git 備份。
+/個人網頁展示_新電腦操作過程截圖/
 
-# 資料庫與匯出檔
-*.db
-*.sqlite
-*.sqlite3
-*.bak
+# ===== 關鍵字與資料目錄封鎖（2026-09-11 併自範本 48f0d3d）=====
+#
+# 副檔名擋不住命名帶關鍵字的檔案：db_password.md、api_token.js、
+# 名冊/三年一班.md 這些都不是特殊副檔名，卻正是最不該外流的東西。
+# 關鍵字比副檔名耐用——新副檔名會一直冒出來，但「password」「名冊」不會變。
+#
+# 這一組是範本 repo 先加的（48f0d3d），2026-09-11 併回主專案，
+# 讓兩邊規則一致、不必各自維護。
+*secret*
+*password*
+*token*
+*credential*
 *.dump
 
-# AI 對話明文
-*.jsonl
+# 程式碼放行：本專案有處理密碼／secret 的原始碼（src/access-gate/password.js、
+# tools/hash-admin-password.mjs、tools/secrets.mjs…）。只放行程式碼副檔名，
+# 所以 tools/student_password.csv 這種資料檔仍然擋得住。
+!src/**/*.js
+!src/**/*.mjs
+!src/**/*.ts
+!tools/**/*.js
+!tools/**/*.mjs
+!test/**/*.mjs
+!scripts/**/*.mjs
+!scripts/**/*.js
 
-# 憑證關鍵字（可能誤擋正常檔名，用 git check-ignore -v 查，勿刪規則）
-*credential*
-*secret*
-*token*
-*password*
-
-# 中文資料目錄
-資料/
+# 資料目錄：名稱本身就說明了內容。
 個資/
-學生/
 名冊/
+學生/
 成績/
+資料/
+
+# ===== 人員資料關鍵字（2026-09-11）=====
+#
+# 為什麼在副檔名之外還要這一組：students.json 與 config.yaml 在誘餌測試裡
+# 漏接，而 *.json／*.yaml 不能整類封鎖——本 repo 有 14 個必要的 .json
+# （package.json、mcp 設定、test/fixtures/detect/*/package.json…）與
+# pnpm-lock.yaml。整類封鎖後逐一放行，日後新增 fixture 目錄又會被靜默擋掉。
+#
+# 改用關鍵字：這些詞出現在檔名裡，幾乎不可能是程式碼。
+# 2026-09-11 實測：對現有 461 個追蹤檔全部零命中。
+*student*
+*roster*
+*學生*
+*名單*
+*名冊*
+*成績*
+*個資*
+*通訊錄*
+*座號*
+*身分證*
+
+# ⚠️ 殘留風險：檔名完全中性的資料檔（config.yaml、data.json、export.txt 之類）
+#    擋不住——.txt 已整類封鎖，但 .json／.yaml 不行。放這類檔案前請自己確認內容。
