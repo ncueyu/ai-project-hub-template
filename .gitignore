@@ -374,3 +374,20 @@ service-account*.json
 
 # ⚠️ 殘留風險：檔名完全中性的資料檔（config.yaml、data.json、export.txt 之類）
 #    擋不住——.txt 已整類封鎖，但 .json／.yaml 不行。放這類檔案前請自己確認內容。
+
+# ===== .yaml／.yml：整類封鎖，逐一放行（2026-09-11）=====
+#
+# 補 config.yaml 這個漏洞——檔名完全中性，關鍵字規則抓不到。
+#
+# 為什麼 .yaml 可以整類封鎖、.json 不行：本 repo 只有兩個 .yaml（都在根目錄），
+# 逐一放行的維護成本接近零；而 .json 有 20 個散在 13 個位置
+# （mcp_config.json、account-guides.json、project-hub.json、launch.json、
+# test/fixtures/detect/*/package.json…），整類封鎖後任何新增的設定檔都會被
+# 靜默擋掉——那正是這整輪修正要消滅的失敗模式。
+#
+# 2026-09-11 實測：套用「*.json 全擋 + 通用 Node 放行清單」後，9 類合法新檔
+# 有 8 類被靜默擋掉（新的 MCP 設定、新範例專案、public/manifest.json 等）。
+*.yaml
+*.yml
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
