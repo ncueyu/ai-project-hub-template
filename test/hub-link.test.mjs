@@ -148,6 +148,60 @@ test("有 HTML 的資料夾一律不是外部連結專案", () => {
   }
 });
 
+test("網頁檔在 public/ 底下也不是外部連結專案", () => {
+  /*
+   * 2026-09-13 實際踩到。`hub new` 產生的結構**就是**「網頁檔在 public/、
+   * 根目錄只放設定檔與 README」，所以一個照標準流程做好的靜態專案，只要
+   * README 裡有任何一個網址就會被判成外部連結。
+   *
+   * 當時的症狀是三個指令互相矛盾：detect 與 check 說 static（link 判斷排在
+   * 最後，wrangler.jsonc 那一條先 return 了），ship 的 scope-check 直接呼叫
+   * detectLinkFolder 卻說「請改用 hub link」——指向一個完全錯誤的方向。
+   */
+  const dir = makeDir({ "README.md": "官方來源：https://example.com/vocab.pdf" });
+
+  try {
+    mkdirSync(join(dir, "public"));
+    writeFileSync(join(dir, "public", "index.html"), "<h1>hi</h1>", "utf8");
+
+    assert.equal(detectLinkFolder(dir).isLink, false);
+    assert.notEqual(detectProject(dir).kind, "link");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("dist/ 與更深層的網頁檔同樣算數", () => {
+  const dir = makeDir({ "連結.txt": "https://example.com/" });
+
+  try {
+    mkdirSync(join(dir, "dist", "pages"), { recursive: true });
+    writeFileSync(join(dir, "dist", "pages", "about.html"), "<h1>hi</h1>", "utf8");
+
+    assert.equal(detectLinkFolder(dir).isLink, false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("node_modules 裡的 HTML 不算這個專案的網頁", () => {
+  /*
+   * 依賴套件幾乎一定夾帶說明用的 .html。把那些算進來，等於任何裝過依賴的
+   * 資料夾都不可能是外部連結專案——那道防線就等於沒有了。
+   */
+  const dir = makeDir({ "網址.txt": "https://sites.google.com/view/example" });
+
+  try {
+    mkdirSync(join(dir, "node_modules", "some-pkg"), { recursive: true });
+    writeFileSync(join(dir, "node_modules", "some-pkg", "doc.html"), "<h1>hi</h1>", "utf8");
+
+    assert.equal(detectLinkFolder(dir).isLink, true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+
 test("detectProject 把只有網址檔的資料夾判成 link", () => {
   const dir = makeDir({ "連結.txt": "https://example.com/" });
 

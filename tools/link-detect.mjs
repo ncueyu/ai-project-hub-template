@@ -160,31 +160,118 @@ export function findLinkFile(dir) {
 }
 
 /**
+ * 常見的網站產物目錄。
+ *
+ * `hub new` 一律把網頁檔案搬進 `public/`（見 new-project.mjs 的 ASSETS_DIRECTORY），
+ * 其餘三個是各家建置工具的預設輸出目錄。
+ *
+ * **這裡刻意不去讀 wrangler.jsonc 的 assets.directory**：那需要 import detect.mjs，
+ * 而本檔案只依賴 node:fs 與 node:path 是刻意的（理由見檔頭的循環相依說明）。
+ */
+const ASSET_DIRECTORIES = Object.freeze(["public", "dist", "build", "out"]);
+
+/** 遞迴深度上限。網站產物可能很深，但 index.html 不會藏在第四層以下。 */
+const MAX_HTML_DEPTH = 3;
+
+/** 不進去的目錄：裡面的 HTML 是依賴或工具的，不是這個專案的網站。 */
+const SKIP_DIRECTORIES = Object.freeze(["node_modules", ".git", ".wrangler", "coverage"]);
+
+/**
+ * 這個資料夾（含子目錄）裡有沒有網頁檔。
+ *
+ * @param {string} dir
+ * @param {number} [depth]
+ * @returns {boolean}
+ */
+function hasHtmlFile(dir, depth = 0) {
+  let entries;
+
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+
+  // 先掃完這一層的檔案再往下走：index.html 幾乎一定在最淺的地方，
+  // 先深後廣會在深層目錄多繞很多路。
+  if (entries.some((entry) => entry.isFile() && /\.html?$/i.test(entry.name))) {
+    return true;
+  }
+
+  if (depth >= MAX_HTML_DEPTH) {
+    return false;
+  }
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || SKIP_DIRECTORIES.includes(entry.name)) {
+      continue;
+    }
+
+    if (hasHtmlFile(join(dir, entry.name), depth + 1)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * 判斷一個資料夾是不是「外部連結專案」。
  *
- * 條件刻意收得很緊：**沒有任何根目錄 HTML**，而且有寫著網址的文字檔。
+ * 條件刻意收得很緊：**沒有任何網頁檔**，而且有寫著網址的文字檔。
  * 有 HTML 的資料夾是要被部署的專案，即使裡面剛好也放了一個連結檔——
  * 把它判成外部連結，會讓 `hub ship` 拒絕一個本來部署得起來的專案。
+ *
+ * ## 2026-09-13：為什麼要看產物目錄，不能只看根目錄
+ *
+ * 原本這裡只掃根目錄（`readdirSync(dir)` 的第一層）。但 `hub new` 產生的結構
+ * **就是**「網頁檔案在 `public/`、根目錄只放設定檔與 README」——於是一個照著
+ * 標準流程做好的靜態專案，只要根目錄的 README 裡有任何一個網址，就會被判成
+ * 外部連結專案。
+ *
+ * 後果特別難查，因為三個指令的結論會不一致：`hub detect` 與 `hub check` 把
+ * link 判斷排在最後，wrangler.jsonc 那一條會先 return `static`；而 `hub ship`
+ * 的 scope-check 直接呼叫本函式，於是它一個人說「這是外部連結專案，請改用
+ * hub link」。使用者看到的訊息指向一個完全錯誤的方向。
+ *
+ * 2026-09-13 部署「英文短文閱讀」時實際撞到：detect 說 static、check 全數通過、
+ * ship 卻停在 scope-check。
+ *
+ * `AGENTS.md` 第 8 節寫的本來就是「**沒有任何 HTML**、但有寫著網址的文字檔」，
+ * 所以這是讓程式碼回去符合既有文件，不是改變規則。
  *
  * @param {string} dir
  * @returns {{ isLink: boolean, url: string | null, source: string | null }}
  */
 export function detectLinkFolder(dir) {
+  const notLink = { isLink: false, url: null, source: null };
+
   let entries;
 
   try {
-    entries = readdirSync(dir);
+    entries = readdirSync(dir, { withFileTypes: true });
   } catch {
-    return { isLink: false, url: null, source: null };
+    return notLink;
   }
 
-  if (entries.some((name) => /\.html?$/i.test(name))) {
-    return { isLink: false, url: null, source: null };
+  if (entries.some((entry) => entry.isFile() && /\.html?$/i.test(entry.name))) {
+    return notLink;
+  }
+
+  // 只進已知的產物目錄，不對整個專案遞迴：一個外部連結專案的資料夾很小，
+  // 但一個大型專案的全目錄掃描會拖慢 ship 的第一步（這道檢查刻意要夠便宜，
+  // 才能放在動任何外部資源之前）。
+  for (const name of ASSET_DIRECTORIES) {
+    const directory = entries.find((entry) => entry.isDirectory() && entry.name === name);
+
+    if (directory && hasHtmlFile(join(dir, name))) {
+      return notLink;
+    }
   }
 
   const link = findLinkFile(dir);
 
   return link === null
-    ? { isLink: false, url: null, source: null }
+    ? notLink
     : { isLink: true, url: link.url, source: link.name };
 }

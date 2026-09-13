@@ -391,3 +391,9 @@ service-account*.json
 *.yml
 !pnpm-lock.yaml
 !pnpm-workspace.yaml
+
+# ===== log 檔（2026-09-12）=====
+# .claude/git-sync.log 由同步腳本產生，2026-09-12 實測 git add -An 乾跑
+# 會把它列進去——Stop hook 還開著的話就會被自動推上 GitHub。
+# log 的內容是「這台機器做過什麼」，不是專案內容。
+*.log
