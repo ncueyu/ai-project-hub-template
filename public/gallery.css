@@ -1247,13 +1247,78 @@ html:not([data-theme]) .project-grid:not([data-layout="list"]) .project-card.is-
 
 /* ---------- 推薦連結（獨立於專案卡片，2026-08-27 工作計畫需求 A） ---------- */
 
-.links-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+/*
+ * 2026-10-14 改成單行橫向捲動＋左右箭頭（原本是 auto-fill grid，超過 5 個就換行）。
+ *
+ * 箭頭層的定位基準。與分類橫排的 .gallery-row-viewport 同一個做法，但箭頭層
+ * 用 inset 上下貼齊而不是寫死 top/height——推薦連結卡片高度隨說明文字長短而變，
+ * 沒有固定值可以寫。能這樣做的前提是下面 .links-track 隱藏了原生捲軸：
+ * 分類橫排之所以要寫死數字，就是因為捲軸佔掉下緣約 15px，讓卡片不在容器正中。
+ */
+.links-viewport {
+  position: relative;
+  margin-top: 20px;
+}
+
+.links-track {
+  display: flex;
   gap: var(--space-md);
-  margin: 20px 0 0;
-  padding: 0;
+  margin: 0;
+  /* 上下內距容納卡片 hover 的陰影：overflow-x 一設，另一軸也會被裁切。
+     左右內距讓第一張／最後一張卡片不被箭頭完全蓋住。 */
+  padding: 12px 4px 18px;
   list-style: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  /* 隱藏原生捲軸：有箭頭、觸控滑動與鍵盤方向鍵可用，捲軸只會讓箭頭無法置中。 */
+  scrollbar-width: none;
+}
+
+.links-track::-webkit-scrollbar {
+  display: none;
+}
+
+.links-track:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* 固定寬度：最右邊那張刻意只露出一部分，暗示右邊還有（Netflix 的手法）。 */
+.links-track > .link-card {
+  flex: 0 0 clamp(200px, 22vw, 240px);
+  scroll-snap-align: start;
+}
+
+/* 上下對齊卡片（扣掉軌道的上下內距），箭頭因此垂直置中在卡片上。 */
+.links-controls {
+  position: absolute;
+  top: 12px;
+  right: 0;
+  bottom: 18px;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+/* 連結少到一行放得下時整層不顯示——用 visibility，不用 hidden 屬性（理由同 .gallery-row-controls.is-static）。 */
+.links-controls.is-static {
+  visibility: hidden;
+}
+
+/* 推薦連結卡片比專案卡片矮很多，56px 的箭頭會蓋掉大半張卡片，縮成 44px。 */
+.links-controls .gallery-row-arrow {
+  width: 44px;
+  height: 44px;
+  pointer-events: auto;
+}
+
+.links-controls .gallery-row-arrow::before {
+  width: 14px;
+  height: 14px;
 }
 
 .link-card-link {
@@ -1406,6 +1471,18 @@ html:not([data-theme]) .project-grid:not([data-layout="list"]) .project-card.is-
     flex-direction: column;
     align-items: flex-start;
   }
+
+  /* 窄螢幕保留推薦連結的箭頭但再縮小（2026-10-14 使用者裁定），主要操作改靠手指滑動。 */
+  .links-controls .gallery-row-arrow {
+    width: 36px;
+    height: 36px;
+  }
+
+  .links-controls .gallery-row-arrow::before {
+    width: 11px;
+    height: 11px;
+    border-width: 2.5px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1417,7 +1494,8 @@ html:not([data-theme]) .project-grid:not([data-layout="list"]) .project-card.is-
   }
 
   /* 橫排捲動本身也是一種動態效果，減少動態時改回瀏覽器預設的立即跳轉。 */
-  .gallery-row-track {
+  .gallery-row-track,
+  .links-track {
     scroll-behavior: auto;
   }
 }

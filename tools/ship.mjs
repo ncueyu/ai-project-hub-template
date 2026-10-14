@@ -94,6 +94,15 @@ async function commitGateChanges(runCommand, dir, message) {
     return { ok: false, detail: `git add 失敗：${addResult.stderr || addResult.stdout}` };
   }
 
+  // 重寫出來的內容與上次一模一樣時（上次已 commit 並推上去、但部署前中斷），
+  // 工作目錄是乾淨的。這時 git commit 會回 1「nothing to commit」，
+  // 不先檢查的話重跑永遠卡在這裡、走不到部署（2026-09-23 實際踩到）。
+  const statusResult = await runCommand("git", ["status", "--porcelain"], dir);
+
+  if (statusResult.code === 0 && statusResult.stdout.trim() === "") {
+    return { ok: true };
+  }
+
   const commitResult = await runCommand("git", ["commit", "-m", message], dir);
 
   if (commitResult.code !== 0) {

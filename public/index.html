@@ -126,12 +126,24 @@
            只套用 .shell（只有 width/margin，沒有 display），刻意不套用任何
            會設定 display 的 class，這樣瀏覽器內建的 [hidden] → display:none
            才不會被覆蓋（見 tools/pitfalls.mjs 的 hidden-overridden-by-class，
-           本專案已踩過四次；display 只放在裡面的 .links-grid 上）。 -->
+           本專案已踩過四次；display 只放在裡面的 .links-track 上）。
+
+           2026-10-14 改成單行橫向捲動＋左右箭頭（使用者要求「像 Netflix 選影片」，
+           原本超過 5 個就換行）。箭頭外觀沿用分類橫排的 .gallery-row-arrow，
+           但定位另寫在 .links-controls——分類橫排的箭頭層用寫死的 26px／378px
+           對齊專案卡片高度，推薦連結卡片比較矮，套用會整個歪掉。
+           id 維持 links-grid，app.js 的既有查詢不必改。 -->
       <section class="shell" id="links-section" aria-labelledby="links-title" hidden>
         <div class="gallery-heading">
           <h2 id="links-title">推薦連結</h2>
         </div>
-        <ul class="links-grid" id="links-grid"></ul>
+        <div class="links-viewport">
+          <ul class="links-track" id="links-grid" tabindex="0" aria-label="推薦連結，可左右捲動"></ul>
+          <div class="links-controls is-static">
+            <button type="button" class="gallery-row-arrow gallery-row-arrow-prev" aria-label="往左看更多推薦連結" disabled></button>
+            <button type="button" class="gallery-row-arrow gallery-row-arrow-next" aria-label="往右看更多推薦連結" disabled></button>
+          </div>
+        </div>
       </section>
 
     </main>

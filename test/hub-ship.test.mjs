@@ -179,10 +179,16 @@ function makeFakeRunner(config, calls) {
     }
 
     if (command === "git" && args[0] === "status" && args[1] === "--porcelain") {
-      return { code: 0, stdout: " M index.html\n", stderr: "" };
+      return { code: 0, stdout: config.porcelain ?? " M index.html\n", stderr: "" };
     }
 
     if (command === "git" && args[0] === "commit") {
+      // 真的 git 在沒有變更時 commit 會回傳 1（"nothing to commit"）。
+      // 模擬這個行為，否則「沒有變更還硬 commit」的缺陷在測試裡永遠看不到。
+      if (config.porcelain === "") {
+        return { code: 1, stdout: "nothing to commit, working tree clean\n", stderr: "" };
+      }
+
       return { code: 0, stdout: "", stderr: "" };
     }
 
@@ -670,6 +676,29 @@ test("a directory left gated by a previous failed deploy is treated as a continu
     /^SESSION_SIGNING_KEY=[0-9a-f]{64}\n$/,
     "應該是新產生的隨機十六進位金鑰，不是空的或固定假值",
   );
+});
+
+/*
+ * 2026-09-23 實際踩到：上一次 ship 已經把閘道 commit 並推上 GitHub、但部署前就中斷
+ * （當時是 git push 拿不到憑證）。重跑時進入點重寫出一模一樣的內容，工作目錄是乾淨的，
+ * 而 commitGateChanges() 照樣 git commit → git 回 1「nothing to commit」→ 整個 ship 停在
+ * commit-gate，永遠走不到部署。重跑幾次都一樣，使用者只能卡死。
+ */
+test("接續執行時進入點沒有實際變更，跳過 commit 直接部署，不因「nothing to commit」停下", { skip: NO_HUB_DB }, async () => {
+  const dir = makeContinuationProject();
+  const { calls, options } = makeShipOptions({
+    runnerConfig: { porcelain: "", remoteUrl: "https://github.com/ncueyu/ship-test.git", remoteRepoExists: true },
+  });
+
+  options.ensureProjectRegistered = async () => ({ projectId: 42, visibility: "private", isNew: false });
+  options.registerDeployment = async () => ({ projectId: 42, visibility: "private", isNew: false });
+  options.fetch = async () => new Response("Not found", { status: 404 });
+
+  const result = await shipProject(dir, options);
+
+  assert.equal(result.ok, true, JSON.stringify(result.steps, null, 2));
+  assert.equal(calls.some((c) => c[0] === "git" && c[1] === "commit"), false, "工作目錄乾淨時不該呼叫 git commit");
+  assert.ok(calls.some((c) => c.includes("deploy")), "應該走到部署");
 });
 
 /* ==========================================================================

@@ -977,9 +977,61 @@
       }
 
       linksSection.hidden = false;
+      initLinksScrolling();
     } catch {
       linksSection.hidden = true;
     }
+  }
+
+  /**
+   * 推薦連結的單行橫捲＋左右箭頭（2026-10-14，使用者要求「像 Netflix 選影片」）。
+   *
+   * 箭頭狀態直接沿用分類橫排的 updateRowArrowState()：放得下就整層 is-static、
+   * 到某一端就那一側 disabled 變灰。兩處行為刻意一致。
+   *
+   * 重算時機與分類橫排相同的理由（見 observeRowSizes()、recheckAfterLayoutSettles()
+   * 的註解）：track 的寬度可能在第一次量測之後才定案，只算一次會讓「放得下卻
+   * 還顯示箭頭」這種不報錯的 bug 重演。所以 ResizeObserver 之外，再掛 load、
+   * fonts.ready、window resize 這些與繪製無關的事件當備援。
+   *
+   * loadLinks() 只在頁面載入時跑一次，這裡的監聽器不會重複綁定。
+   */
+  function initLinksScrolling() {
+    const prevButton = /** @type {HTMLButtonElement | null} */ (linksSection.querySelector(".gallery-row-arrow-prev"));
+    const nextButton = /** @type {HTMLButtonElement | null} */ (linksSection.querySelector(".gallery-row-arrow-next"));
+
+    if (!prevButton || !nextButton) {
+      return;
+    }
+
+    const refresh = () => updateRowArrowState(linksGrid, prevButton, nextButton);
+
+    refresh();
+    linksGrid.addEventListener("scroll", refresh, { passive: true });
+    window.addEventListener("resize", refresh, { passive: true });
+
+    if (typeof ResizeObserver === "function") {
+      new ResizeObserver(refresh).observe(linksGrid);
+    }
+
+    if (document.readyState === "complete") {
+      refresh();
+    } else {
+      window.addEventListener("load", refresh, { once: true });
+    }
+
+    document.fonts?.ready.then(refresh).catch(() => {});
+
+    // 顯式的 behavior 會蓋過 CSS 的 scroll-behavior，「減少動態」要在這裡判斷（同 initRowScrolling）。
+    const scrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+
+    prevButton.addEventListener("click", () => {
+      linksGrid.scrollBy({ left: -linksGrid.clientWidth * 0.9, behavior: scrollBehavior });
+    });
+
+    nextButton.addEventListener("click", () => {
+      linksGrid.scrollBy({ left: linksGrid.clientWidth * 0.9, behavior: scrollBehavior });
+    });
   }
 
   load();
